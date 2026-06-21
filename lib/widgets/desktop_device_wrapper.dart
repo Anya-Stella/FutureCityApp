@@ -4,6 +4,8 @@ import '../theme/app_theme.dart';
 class DesktopDeviceWrapper extends StatelessWidget {
   final Widget child;
 
+  static final ValueNotifier<bool> useLightStatusBar = ValueNotifier<bool>(true);
+
   const DesktopDeviceWrapper({super.key, required this.child});
 
   @override
@@ -158,13 +160,114 @@ class DesktopDeviceWrapper extends StatelessWidget {
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(47),
-                            child: child,
+                            child: MediaQuery(
+                              data: MediaQuery.of(context).copyWith(
+                                padding: const EdgeInsets.only(top: 44.0, bottom: 34.0),
+                                viewPadding: const EdgeInsets.only(top: 44.0, bottom: 34.0),
+                              ),
+                              child: child,
+                            ),
+                          ),
+                        ),
+
+                        // Faked status bar overlay at the top (IgnorePointer)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 44,
+                          child: IgnorePointer(
+                            child: ValueListenableBuilder<bool>(
+                              valueListenable: useLightStatusBar,
+                              builder: (context, light, _) {
+                                final textColor = light ? Colors.white : const Color(0xFF111820);
+                                return Container(
+                                  padding: const EdgeInsets.only(left: 28.0, right: 28.0, top: 12.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        '9:41',
+                                        style: AppTheme.getManrope(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: textColor,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          // Signal strength icon
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: List.generate(4, (index) {
+                                              final heights = [4.0, 6.5, 9.0, 11.0];
+                                              return Container(
+                                                width: 3,
+                                                height: heights[index],
+                                                margin: EdgeInsets.only(right: index == 3 ? 0 : 2),
+                                                decoration: BoxDecoration(
+                                                  color: textColor,
+                                                  borderRadius: BorderRadius.circular(0.6),
+                                                ),
+                                              );
+                                            }),
+                                          ),
+                                          const SizedBox(width: 7),
+                                          // Battery icon
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 22,
+                                                height: 11,
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(3),
+                                                  border: Border.all(
+                                                    color: textColor.withOpacity(0.5),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                alignment: Alignment.centerLeft,
+                                                padding: const EdgeInsets.all(1),
+                                                child: Container(
+                                                  width: 15,
+                                                  height: 7,
+                                                  decoration: BoxDecoration(
+                                                    borderRadius: BorderRadius.circular(1.6),
+                                                    color: textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 1.5),
+                                              Container(
+                                                width: 1.6,
+                                                height: 5,
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(0.8),
+                                                  color: textColor.withOpacity(0.6),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
 
                         // Notch overlay at the top matching #fc-notch
                         Positioned(
-                          top: 5,
+                          top: 12,
                           left: 0,
                           right: 0,
                           child: Center(

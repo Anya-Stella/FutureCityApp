@@ -45,8 +45,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
       final evalsList = evalsResponse as List;
       final totalEvals = evalsList.length;
-      final supports = evalsList.where((e) => e['action'] == 'support').length;
-      final rate = totalEvals > 0 ? (supports / totalEvals) * 100 : 0.0;
 
       // 2. Early supported posts
       final earlyEvals = await supabase

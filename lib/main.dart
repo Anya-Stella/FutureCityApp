@@ -130,6 +130,8 @@ class _MainLayoutState extends State<MainLayout> {
       setState(() {
         _currentIndex = index;
       });
+      // Toggle mock status bar color: white text on Eval screen (index 1), dark text on others
+      DesktopDeviceWrapper.useLightStatusBar.value = (index == 1);
     }
   }
 
