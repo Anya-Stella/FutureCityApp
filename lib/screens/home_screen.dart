@@ -15,10 +15,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final supabase = Supabase.instance.client;
   List<dynamic> _projects = [];
-  List<dynamic> _posts = [];
+  List<dynamic> _popularPosts = [];
+  List<dynamic> _newPosts = [];
   bool _isLoadingProjects = true;
   bool _isLoadingPosts = true;
-  bool _isPopularSelected = true;
 
   @override
   void initState() {
@@ -62,25 +62,27 @@ class _HomeScreenState extends State<HomeScreen> {
           .eq('status', 'published');
 
       final data = await query;
-      
-      // Sort in Dart to ensure maximum compatibility and stability
-      if (_isPopularSelected) {
-        data.sort((a, b) {
-          final scoreA = (a['post_metrics']?['score'] ?? 0) as num;
-          final scoreB = (b['post_metrics']?['score'] ?? 0) as num;
-          return scoreB.compareTo(scoreA);
-        });
-      } else {
-        data.sort((a, b) {
-          final timeA = DateTime.parse(a['published_at'] ?? a['created_at']);
-          final timeB = DateTime.parse(b['published_at'] ?? b['created_at']);
-          return timeB.compareTo(timeA);
-        });
-      }
+
+      // Sort popular: Sort by support_count/score descending
+      final popularData = List<dynamic>.from(data);
+      popularData.sort((a, b) {
+        final scoreA = (a['post_metrics']?['support_count'] ?? 0) as num;
+        final scoreB = (b['post_metrics']?['support_count'] ?? 0) as num;
+        return scoreB.compareTo(scoreA);
+      });
+
+      // Sort new: Sort by published_at or created_at descending
+      final newData = List<dynamic>.from(data);
+      newData.sort((a, b) {
+        final timeA = DateTime.parse(a['published_at'] ?? a['created_at']);
+        final timeB = DateTime.parse(b['published_at'] ?? b['created_at']);
+        return timeB.compareTo(timeA);
+      });
 
       if (mounted) {
         setState(() {
-          _posts = data;
+          _popularPosts = popularData.take(2).toList();
+          _newPosts = newData.take(4).toList();
           _isLoadingPosts = false;
         });
       }
@@ -90,13 +92,34 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String _getAgoString(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final diff = DateTime.now().difference(date);
+      if (diff.inDays > 7) {
+        return '${date.month}/${date.day}';
+      } else if (diff.inDays >= 1) {
+        return '${diff.inDays}日前';
+      } else if (diff.inHours >= 1) {
+        return '${diff.inHours}時間前';
+      } else if (diff.inMinutes >= 1) {
+        return '${diff.inMinutes}分前';
+      } else {
+        return 'たった今';
+      }
+    } catch (_) {
+      return '';
+    }
+  }
+
   void _openPostDetail(dynamic post) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => FractionallySizedBox(
-        heightFactor: 0.9,
+        heightFactor: 0.92,
         child: PostDetailSheet(post: post),
       ),
     );
@@ -106,215 +129,302 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: AppTheme.tealDark,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.location_city_rounded, color: Colors.white, size: 16),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'FUTURE CITY',
-              style: AppTheme.getManrope(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.text,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_outlined, color: AppTheme.text),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        color: AppTheme.teal,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: [
-            // Active challenges
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                '注目のチャレンジ',
-                style: AppTheme.getNotoSansJP(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.text,
+      appBar: null, // Custom header inside body instead of AppBar
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppTheme.teal,
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 112),
+            children: [
+              // 1. Custom Header
+              Padding(
+                padding: const EdgeInsets.only(left: 22, right: 22, top: 12, bottom: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'ホーム',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.8,
+                        color: AppTheme.text,
+                      ),
+                    ),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0D2230).withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.notifications_none_outlined, size: 19, color: AppTheme.text),
+                        onPressed: () {},
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _isLoadingProjects
-                ? const SizedBox(
-                    height: 190,
-                    child: Center(child: CircularProgressIndicator(color: AppTheme.teal)),
-                  )
-                : _projects.isEmpty
-                    ? Container(
-                        height: 100,
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.uiGrey.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '現在実施中のチャレンジはありません',
-                            style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13),
-                          ),
-                        ),
-                      )
-                    : SizedBox(
-                        height: 195,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _projects.length,
-                          itemBuilder: (context, idx) {
-                            final proj = _projects[idx];
-                            final ends = proj['ends_at'] != null 
-                                ? DateTime.parse(proj['ends_at']).toLocal() 
-                                : DateTime.now();
-                            final deadlineStr = '${ends.month}/${ends.day}';
 
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 16),
-                              child: SizedBox(
-                                width: 300,
-                                child: ChallengeCard(
-                                  title: proj['title'] ?? '無題',
-                                  description: proj['description'] ?? '',
-                                  imageUrl: proj['cover_image_url'] ?? '',
-                                  deadline: deadlineStr,
-                                  buttonText: '${proj['reward_points'] ?? 0} pts 獲得',
-                                  onTap: () {
-                                    // Handle clicking challenge card -> goes to details/create with proj_id
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+              // 2. Active Challenges (Single Large Card)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '注目のチャレンジ',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.01,
+                        color: AppTheme.text,
                       ),
-            const SizedBox(height: 30),
-            // Ideas section header + tabs
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'まちのアイデア',
-                    style: AppTheme.getNotoSansJP(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.text,
                     ),
-                  ),
-                  Row(
-                    children: [
-                      _buildTabButton('人気', _isPopularSelected, () {
-                        setState(() {
-                          _isPopularSelected = true;
-                          _fetchPosts();
-                        });
-                      }),
-                      const SizedBox(width: 8),
-                      _buildTabButton('新着', !_isPopularSelected, () {
-                        setState(() {
-                          _isPopularSelected = false;
-                          _fetchPosts();
-                        });
-                      }),
-                    ],
-                  )
-                ],
+                    Text(
+                      'すべて見る',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.teal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _isLoadingPosts
-                ? const Center(child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40.0),
-                    child: CircularProgressIndicator(color: AppTheme.teal),
-                  ))
-                : _posts.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 60.0),
-                          child: Text(
-                            '表示可能なアイデアはありません',
-                            style: AppTheme.getNotoSansJP(color: AppTheme.sub),
+              const SizedBox(height: 8),
+              _isLoadingProjects
+                  ? const SizedBox(
+                      height: 190,
+                      child: Center(child: CircularProgressIndicator(color: AppTheme.teal)),
+                    )
+                  : _projects.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: ChallengeCard(
+                            title: '大宮駅東口歩行者空間化',
+                            description: 'みんなで、緑のある\n歩きたくなる駅前へ。',
+                            imageUrl: 'assets/challenge-cover.png',
+                            deadline: '7/31',
+                            onTap: () {},
+                          ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: ChallengeCard(
+                            title: _projects.first['title'] ?? '無題',
+                            description: _projects.first['description'] ?? 'みんなで、緑のある\n歩きたくなる駅前へ。',
+                            imageUrl: _projects.first['cover_image_url'] ?? '',
+                            deadline: _projects.first['ends_at'] != null
+                                ? '${DateTime.parse(_projects.first['ends_at']).toLocal().month}/${DateTime.parse(_projects.first['ends_at']).toLocal().day}'
+                                : '7/31',
+                            onTap: () {},
                           ),
                         ),
-                      )
-                    : GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 0.72,
-                        ),
-                        itemCount: _posts.length,
-                        itemBuilder: (context, idx) {
-                          final post = _posts[idx];
-                          final media = post['post_media'] as List?;
-                          final primaryImg = media != null && media.isNotEmpty
-                              ? media.firstWhere((m) => m['media_type'] == 'generated', orElse: () => media.first)['url']
-                              : '';
-                          final metrics = post['post_metrics'];
-                          final authorProfile = post['profiles'];
 
-                          return PostCard(
-                            title: post['title'] ?? '無題のアイデア',
-                            imageUrl: primaryImg,
-                            likes: metrics?['support_count'] ?? 0,
-                            comments: metrics?['comment_count'] ?? 0,
-                            author: authorProfile?['display_name'] ?? 'ゲスト市民',
-                            area: authorProfile?['area_name'] ?? '未設定',
-                            onTap: () => _openPostDetail(post),
-                          );
-                        },
+              // 3. Popular Posts (Grid Layout)
+              Padding(
+                padding: const EdgeInsets.only(left: 22, right: 22, top: 34, bottom: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '人気の投稿',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.01,
+                        color: AppTheme.text,
                       ),
-          ],
-        ),
-      ),
-    );
-  }
+                    ),
+                    Text(
+                      'すべて見る',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.teal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _isLoadingPosts
+                  ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
+                  : GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.74,
+                      ),
+                      itemCount: _popularPosts.length,
+                      itemBuilder: (context, idx) {
+                        final post = _popularPosts[idx];
+                        final media = post['post_media'] as List?;
+                        final primaryImg = media != null && media.isNotEmpty
+                            ? media.firstWhere((m) => m['media_type'] == 'generated', orElse: () => media.first)['url']
+                            : '';
+                        final metrics = post['post_metrics'];
+                        final authorProfile = post['profiles'];
 
-  Widget _buildTabButton(String label, bool isSelected, VoidCallback onPressed) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.teal : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppTheme.teal : AppTheme.border,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: AppTheme.getNotoSansJP(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : AppTheme.sub,
+                        return PostCard(
+                          title: post['title'] ?? '無題のアイデア',
+                          imageUrl: primaryImg,
+                          likes: metrics?['support_count'] ?? 0,
+                          comments: metrics?['comment_count'] ?? 0,
+                          author: authorProfile?['display_name'] ?? 'ゲスト市民',
+                          area: authorProfile?['area_name'] ?? '未設定',
+                          onTap: () => _openPostDetail(post),
+                        );
+                      },
+                    ),
+
+              // 4. New Posts (Vertical List Layout)
+              Padding(
+                padding: const EdgeInsets.only(left: 22, right: 22, top: 34, bottom: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '新着の投稿',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.01,
+                        color: AppTheme.text,
+                      ),
+                    ),
+                    Text(
+                      'すべて見る',
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.teal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _isLoadingPosts
+                  ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
+                  : ListView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      itemCount: _newPosts.length,
+                      itemBuilder: (context, idx) {
+                        final post = _newPosts[idx];
+                        final media = post['post_media'] as List?;
+                        final primaryImg = media != null && media.isNotEmpty
+                            ? media.firstWhere((m) => m['media_type'] == 'generated', orElse: () => media.first)['url']
+                            : '';
+                        final metrics = post['post_metrics'];
+                        final authorProfile = post['profiles'];
+
+                        return GestureDetector(
+                          onTap: () => _openPostDetail(post),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0C1920).withOpacity(0.06),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: SizedBox(
+                                    width: 74,
+                                    height: 74,
+                                    child: primaryImg.isNotEmpty
+                                        ? (primaryImg.startsWith('assets/') || primaryImg.startsWith('src/assets/')
+                                            ? Image.asset(primaryImg.startsWith('src/') ? primaryImg.replaceFirst('src/', '') : primaryImg, fit: BoxFit.cover)
+                                            : Image.network(primaryImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover)))
+                                        : Image.asset('assets/street-before.png', fit: BoxFit.cover),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        post['title'] ?? '無題のアイデア',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.getNotoSansJP(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppTheme.text,
+                                          height: 1.45,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        '${authorProfile?['display_name'] ?? 'ゲスト'}・${authorProfile?['area_name'] ?? '未設定'}・${_getAgoString(post['published_at'] ?? post['created_at'])}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.getNotoSansJP(
+                                          fontSize: 11,
+                                          color: AppTheme.sub,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.favorite_border, size: 12, color: AppTheme.sub),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${metrics?['support_count'] ?? 0}',
+                                                style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 13),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.chat_bubble_outline, size: 12, color: AppTheme.sub),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${metrics?['comment_count'] ?? 0}',
+                                                style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ],
           ),
         ),
       ),
@@ -323,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // -----------------------------------------------------------------------------
-// POST DETAIL SHEET WITH DRAG-TO-SLIDE BEFORE/AFTER COMPARISON
+// POST DETAIL SHEET WITH TOGGLE IMAGE COMPARISON AND CUSTOM HEADERS
 // -----------------------------------------------------------------------------
 class PostDetailSheet extends StatefulWidget {
   final dynamic post;
@@ -338,8 +448,8 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
   final _commentController = TextEditingController();
   List<dynamic> _comments = [];
   bool _isLoadingComments = true;
-  double _sliderPos = 0.5; // Drag position (0.0 to 1.0)
   bool _isSaved = false;
+  bool _showAfter = true; // Toggle state for before/after comparison
 
   @override
   void initState() {
@@ -464,9 +574,32 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
       if (afterImg.isEmpty && mediaList.isNotEmpty) afterImg = mediaList[0]['url'];
     }
 
+    final double supportRate = metrics?['support_rate'] != null
+        ? (double.tryParse(metrics['support_rate'].toString()) ?? 0.0)
+        : 0.0;
+
+    // Get time elapsed
+    String timeAgo = '';
+    final rawTime = post['published_at'] ?? post['created_at'];
+    if (rawTime != null) {
+      try {
+        final date = DateTime.parse(rawTime).toLocal();
+        final diff = DateTime.now().difference(date);
+        if (diff.inDays > 7) {
+          timeAgo = '${date.month}/${date.day}';
+        } else if (diff.inDays >= 1) {
+          timeAgo = '${diff.inDays}日前';
+        } else if (diff.inHours >= 1) {
+          timeAgo = '${diff.inHours}時間前';
+        } else {
+          timeAgo = '今日';
+        }
+      } catch (_) {}
+    }
+
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       clipBehavior: Clip.antiAlias,
@@ -484,104 +617,161 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
               ),
             ),
           ),
+
+          // Custom Header
+          Container(
+            padding: const EdgeInsets.only(left: 14, right: 14, top: 4, bottom: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+                      ],
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new, size: 14, color: AppTheme.text),
+                  ),
+                ),
+                Text(
+                  '投稿の詳細',
+                  style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.text),
+                ),
+                GestureDetector(
+                  onTap: _toggleSave,
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+                      ],
+                    ),
+                    child: Icon(
+                      _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                      size: 15,
+                      color: _isSaved ? AppTheme.teal : AppTheme.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 40),
               children: [
-                // 1. Before/After Split Slider
+                // 1. Toggle Image Comparison
                 if (beforeImg.isNotEmpty && afterImg.isNotEmpty)
-                  AspectRatio(
-                    aspectRatio: 16 / 10,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        return GestureDetector(
-                          onHorizontalDragUpdate: (details) {
-                            setState(() {
-                              _sliderPos = (_sliderPos + details.primaryDelta! / w).clamp(0.0, 1.0);
-                            });
-                          },
-                          child: Stack(
-                            children: [
-                              // Generated (After) image fills the background
-                              Positioned.fill(
-                                child: Image.network(afterImg, fit: BoxFit.cover),
-                              ),
-                              // ClipRect for original (Before) image
-                              Positioned(
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: w * _sliderPos,
-                                child: ClipRect(
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    widthFactor: _sliderPos,
-                                    child: SizedBox(
-                                      width: w,
-                                      height: h,
-                                      child: Image.network(beforeImg, fit: BoxFit.cover),
-                                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 11,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: _showAfter
+                                  ? (afterImg.startsWith('assets/') || afterImg.startsWith('src/assets/')
+                                      ? Image.asset(afterImg.startsWith('src/') ? afterImg.replaceFirst('src/', '') : afterImg, fit: BoxFit.cover)
+                                      : Image.network(afterImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover)))
+                                  : (beforeImg.startsWith('assets/') || beforeImg.startsWith('src/assets/')
+                                      ? Image.asset(beforeImg.startsWith('src/') ? beforeImg.replaceFirst('src/', '') : beforeImg, fit: BoxFit.cover)
+                                      : Image.network(beforeImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover))),
+                            ),
+                            // Badge label
+                            Positioned(
+                              left: 12,
+                              top: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: _showAfter ? const Color(0xEC006C74) : const Color(0xB507141C),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  _showAfter ? 'AFTER (AI生成)' : 'BEFORE',
+                                  style: AppTheme.getNotoSansJP(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
-                              // Vertical slider divider line
-                              Positioned(
-                                left: w * _sliderPos - 1,
-                                top: 0,
-                                bottom: 0,
+                            ),
+                            // Toggle button overlay
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _showAfter = !_showAfter;
+                                  });
+                                },
                                 child: Container(
-                                  width: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              // Centered Slider handle thumb
-                              Positioned(
-                                left: w * _sliderPos - 18,
-                                top: h / 2 - 18,
-                                child: Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: const BoxDecoration(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
                                     color: Colors.white,
-                                    shape: BoxShape.circle,
+                                    borderRadius: BorderRadius.circular(999),
                                     boxShadow: [
-                                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.18),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
                                     ],
                                   ),
-                                  child: const Icon(Icons.swap_horiz, color: AppTheme.text, size: 20),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.swap_horiz, size: 14, color: AppTheme.teal),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Before / After',
+                                        style: AppTheme.getManrope(
+                                          color: AppTheme.teal,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              // Labels
-                              Positioned(
-                                left: 12,
-                                top: 12,
-                                child: _buildLabel('BEFORE', Colors.black45),
-                              ),
-                              Positioned(
-                                right: 12,
-                                top: 12,
-                                child: _buildLabel('AFTER (AI)', AppTheme.tealDark),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
 
                 // 2. Info details
                 Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        post['title'] ?? '',
+                        style: AppTheme.getNotoSansJP(fontSize: 20, fontWeight: FontWeight.w900, color: AppTheme.text, height: 1.45),
+                      ),
+                      const SizedBox(height: 14),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           CircleAvatar(
-                            radius: 18,
+                            radius: 19,
                             backgroundColor: AppTheme.uiGrey,
                             backgroundImage: author?['avatar_url'] != null
                                 ? NetworkImage(author['avatar_url'])
@@ -596,111 +786,224 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
                             children: [
                               Text(
                                 author?['display_name'] ?? '市民メンバー',
-                                style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w600),
+                                style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700),
                               ),
                               Text(
-                                author?['area_name'] ?? '未登録エリア',
+                                '${author?['area_name'] ?? '未登録エリア'}・$timeAgo',
                                 style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
                               ),
                             ],
                           ),
-                          const Spacer(),
-                          // Save Action Button
-                          IconButton(
-                            icon: Icon(
-                              _isSaved ? Icons.bookmark : Icons.bookmark_border,
-                              color: _isSaved ? AppTheme.teal : AppTheme.sub,
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        post['body'] ?? '',
+                        style: AppTheme.getNotoSansJP(fontSize: 14, color: AppTheme.sub, height: 1.9),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tags Row
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3EFED),
+                              borderRadius: BorderRadius.circular(999),
                             ),
-                            onPressed: _toggleSave,
+                            child: Text(
+                              '#歩道拡幅',
+                              style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.teal),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3EFED),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '#景観向上',
+                              style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.teal),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        post['title'] ?? '',
-                        style: AppTheme.getNotoSansJP(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        post['body'] ?? '',
-                        style: AppTheme.getNotoSansJP(fontSize: 14, color: AppTheme.text, height: 1.6),
-                      ),
-                      const SizedBox(height: 20),
-                      // Stats metrics row
+                      const SizedBox(height: 16),
+
+                      // Metrics summary row
                       Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.bgSoft,
-                          borderRadius: BorderRadius.circular(12),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: AppTheme.border, width: 1),
+                            bottom: BorderSide(color: AppTheme.border, width: 1),
+                          ),
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildStatItem('支持数', '${metrics?['support_count'] ?? 0} 人'),
-                            _buildStatItem('支持率', '${((double.tryParse(metrics?['support_rate']?.toString() ?? '0') ?? 0.0) * 100).toStringAsFixed(0)}%'),
-                            _buildStatItem('コメント', '${metrics?['comment_count'] ?? 0} 件'),
+                            Row(
+                              children: [
+                                const Icon(Icons.favorite, color: AppTheme.heart, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${metrics?['support_count'] ?? 0}',
+                                  style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.sub),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 20),
+                            Row(
+                              children: [
+                                const Icon(Icons.chat_bubble_outline, color: AppTheme.sub, size: 15),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${metrics?['comment_count'] ?? 0}',
+                                  style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.sub),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: _toggleSave,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                                    color: AppTheme.teal,
+                                    size: 15,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '保存',
+                                    style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.teal),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 30),
-                      // Comments Section
+
+                      // Support Rate Progress Bar
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'この提案への支持',
+                                  style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.text),
+                                ),
+                                Text(
+                                  '${(supportRate * 100).toStringAsFixed(0)}%',
+                                  style: AppTheme.getManrope(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.teal),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 9,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: AppTheme.border,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: FractionallySizedBox(
+                                alignment: Alignment.centerLeft,
+                                widthFactor: supportRate.clamp(0.0, 1.0),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.teal,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '現在の集計データに基づく',
+                              style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Comments
                       Text(
-                        '意見交換 (${_comments.length}件)',
-                        style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700),
+                        'コメント',
+                        style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
                       ),
                       const SizedBox(height: 12),
                       _isLoadingComments
                           ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
-                          : ListView.separated(
+                          : ListView.builder(
                               physics: const NeverScrollableScrollPhysics(),
                               shrinkWrap: true,
                               itemCount: _comments.length,
-                              separatorBuilder: (_, __) => const Divider(height: 20),
                               itemBuilder: (context, idx) {
                                 final comm = _comments[idx];
                                 final commAuthor = comm['profiles'];
-                                return Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 14,
-                                      backgroundColor: AppTheme.uiGrey,
-                                      backgroundImage: commAuthor?['avatar_url'] != null
-                                          ? NetworkImage(commAuthor['avatar_url'])
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                commAuthor?['display_name'] ?? '市民サポーター',
-                                                style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.w600),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                '${DateTime.parse(comm['created_at']).toLocal().month}/${DateTime.parse(comm['created_at']).toLocal().day}',
-                                                style: AppTheme.getNotoSansJP(fontSize: 10, color: AppTheme.muted),
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 14),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 17,
+                                        backgroundColor: AppTheme.uiGrey,
+                                        backgroundImage: commAuthor?['avatar_url'] != null
+                                            ? NetworkImage(commAuthor['avatar_url'])
+                                            : null,
+                                        child: commAuthor?['avatar_url'] == null
+                                            ? const Icon(Icons.person, color: AppTheme.sub, size: 14)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(14),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF0D2230).withOpacity(0.05),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            comm['body'] ?? '',
-                                            style: AppTheme.getNotoSansJP(fontSize: 13, color: AppTheme.text),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                commAuthor?['display_name'] ?? '市民サポーター',
+                                                style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.text),
+                                              ),
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                comm['body'] ?? '',
+                                                style: AppTheme.getNotoSansJP(fontSize: 13, color: AppTheme.sub, height: 1.6),
+                                              ),
+                                            ],
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    )
-                                  ],
+                                    ],
+                                  ),
                                 );
                               },
                             ),
-                      const SizedBox(height: 20),
-                      // Add Comment Input Box
+                      const SizedBox(height: 10),
+
+                      // Add comment input box
                       Row(
                         children: [
                           Expanded(
@@ -713,6 +1016,7 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(color: AppTheme.border),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(20),
@@ -727,7 +1031,83 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
                             onPressed: _postComment,
                           )
                         ],
-                      )
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Map Container with Center Pin
+                      Text(
+                        '投稿場所',
+                        style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 130,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppTheme.border,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Image.network(
+                                'https://tile.openstreetmap.org/15/29094/12711.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(color: AppTheme.border),
+                              ),
+                            ),
+                            Center(
+                              child: Container(
+                                transform: Matrix4.translationValues(0, -14, 0),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.location_on,
+                                      color: AppTheme.teal,
+                                      size: 28,
+                                    ),
+                                    Positioned(
+                                      top: 6,
+                                      child: Container(
+                                        width: 5,
+                                        height: 5,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 10,
+                              left: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: const [
+                                    BoxShadow(color: Colors.black12, blurRadius: 8),
+                                  ],
+                                ),
+                                child: Text(
+                                  '周辺の投稿を見る',
+                                  style: AppTheme.getNotoSansJP(
+                                    color: AppTheme.teal,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -736,36 +1116,6 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
           )
         ],
       ),
-    );
-  }
-
-  Widget _buildLabel(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: AppTheme.getManrope(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: AppTheme.getManrope(fontSize: 15, color: AppTheme.text, fontWeight: FontWeight.bold),
-        ),
-      ],
     );
   }
 }

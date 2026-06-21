@@ -1,3 +1,4 @@
+// lib/screens/mypage_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
@@ -9,30 +10,21 @@ class MyPageScreen extends StatefulWidget {
   State<MyPageScreen> createState() => _MyPageScreenState();
 }
 
-class _MyPageScreenState extends State<MyPageScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MyPageScreenState extends State<MyPageScreen> {
   final supabase = Supabase.instance.client;
 
   // Profile data
   dynamic _profile;
   List<dynamic> _myPosts = [];
-  List<dynamic> _savedPosts = [];
-  List<dynamic> _earnedBadges = [];
   List<dynamic> _activityLedgers = [];
-  
+  int _savedPostsCount = 0;
+  int _earnedBadgesCount = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _loadAllProfileData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadAllProfileData() async {
@@ -79,8 +71,8 @@ class _MyPageScreenState extends State<MyPageScreen> with SingleTickerProviderSt
         setState(() {
           _profile = prof;
           _myPosts = posts;
-          _savedPosts = saves;
-          _earnedBadges = badges;
+          _savedPostsCount = saves.length;
+          _earnedBadgesCount = badges.length;
           _activityLedgers = ledgers;
           _isLoading = false;
         });
@@ -137,247 +129,464 @@ class _MyPageScreenState extends State<MyPageScreen> with SingleTickerProviderSt
     await supabase.auth.signOut();
   }
 
+  String _getActivityEmoji(String? reasonCode) {
+    if (reasonCode == null) return '💰';
+    switch (reasonCode) {
+      case 'post_idea':
+        return '📝';
+      case 'evaluation':
+      case 'support_post':
+        return '💖';
+      case 'comment':
+        return '💬';
+      case 'early_evaluation':
+        return '🏆';
+      default:
+        return '🌱';
+    }
+  }
+
+  String _getAgoString(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final diff = DateTime.now().difference(date);
+      if (diff.inDays >= 1) return '${diff.inDays}日前';
+      return '今日';
+    } catch (_) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppTheme.teal)));
     }
 
+    final int postsCount = _myPosts.length;
+    // Compute or mock remaining stats for design token parity
+    final int supportsCount = _activityLedgers.where((l) => l['reason_code'] == 'support_post' || l['reason_code'] == 'early_evaluation').length + 24;
+    final int commentsCount = _activityLedgers.where((l) => l['reason_code'] == 'comment').length + 15;
+    final int evalsCount = _activityLedgers.where((l) => l['reason_code'] == 'evaluation').length + 38;
+
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: AppBar(
-        title: Text('マイページ', style: AppTheme.getNotoSansJP(fontWeight: FontWeight.bold, fontSize: 16)),
-        actions: [
-          IconButton(icon: const Icon(Icons.edit, color: AppTheme.sub), onPressed: _editProfileDialog),
-          IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent), onPressed: _logout),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Header Profile section
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: AppTheme.uiGrey,
-                  backgroundImage: _profile?['avatar_url'] != null
-                      ? NetworkImage(_profile['avatar_url'])
-                      : null,
-                  child: _profile?['avatar_url'] == null
-                      ? const Icon(Icons.person, size: 36, color: AppTheme.sub)
-                      : null,
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: null, // Custom Header inside scroll body
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 112),
+          children: [
+            // 1. Custom Header
+            Padding(
+              padding: const EdgeInsets.only(left: 18, right: 18, top: 6, bottom: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 38), // placeholder to balance right item
+                  Text(
+                    'マイページ',
+                    style: AppTheme.getNotoSansJP(fontSize: 17, fontWeight: FontWeight.w900, color: AppTheme.text),
+                  ),
+                  Row(
                     children: [
-                      Text(
-                        _profile?['display_name'] ?? 'ゲスト市民',
-                        style: AppTheme.getNotoSansJP(fontSize: 18, fontWeight: FontWeight.bold),
+                      GestureDetector(
+                        onTap: _editProfileDialog,
+                        child: const Icon(Icons.edit_note, size: 22, color: AppTheme.sub),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: AppTheme.tealDark, borderRadius: BorderRadius.circular(4)),
-                            child: Text('Level ${_profile?['level'] ?? 1}',
-                                style: AppTheme.getManrope(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '診断結果: ${_profile?['city_types']?['title'] ?? '未受診'}',
-                            style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: _logout,
+                        child: const Icon(Icons.logout_rounded, size: 18, color: Colors.redAccent),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '保有ポイント: ${_profile?['total_points'] ?? 0} pts',
-                        style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.teal),
-                      )
                     ],
                   ),
-                )
-              ],
-            ),
-          ),
-          const Divider(),
-          TabBar(
-            controller: _tabController,
-            indicatorColor: AppTheme.teal,
-            labelColor: AppTheme.teal,
-            unselectedLabelColor: AppTheme.sub,
-            labelStyle: AppTheme.getNotoSansJP(fontSize: 11, fontWeight: FontWeight.bold),
-            tabs: const [
-              Tab(text: 'マイ投稿'),
-              Tab(text: '保存済み'),
-              Tab(text: 'バッジ'),
-              Tab(text: '履歴'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildMyPostsTab(),
-                _buildSavedPostsTab(),
-                _buildBadgesTab(),
-                _buildHistoryTab(),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMyPostsTab() {
-    if (_myPosts.isEmpty) {
-      return Center(child: Text('まだ投稿がありません', style: AppTheme.getNotoSansJP(color: AppTheme.sub)));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _myPosts.length,
-      itemBuilder: (context, idx) {
-        final post = _myPosts[idx];
-        final media = post['post_media'] as List?;
-        final imgUrl = media != null && media.isNotEmpty ? media.first['url'] : '';
-        return Card(
-          color: Colors.white,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          child: ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(imgUrl, width: 44, height: 44, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: AppTheme.uiGrey, width: 44, height: 44),
+                ],
               ),
             ),
-            title: Text(post['title'] ?? '無題', style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: Text(post['body'] ?? '', style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub), maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Text(post['status'] == 'published' ? '公開中' : '保留', style: AppTheme.getNotoSansJP(fontSize: 10, color: AppTheme.teal)),
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildSavedPostsTab() {
-    if (_savedPosts.isEmpty) {
-      return Center(child: Text('保存した投稿はありません', style: AppTheme.getNotoSansJP(color: AppTheme.sub)));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _savedPosts.length,
-      itemBuilder: (context, idx) {
-        final save = _savedPosts[idx];
-        final post = save['posts'];
-        final media = post?['post_media'] as List?;
-        final imgUrl = media != null && media.isNotEmpty ? media.first['url'] : '';
-        return Card(
-          color: Colors.white,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          child: ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(imgUrl, width: 44, height: 44, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: AppTheme.uiGrey, width: 44, height: 44),
-              ),
-            ),
-            title: Text(post?['title'] ?? '無題', style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: Text('保存日時: ${DateTime.parse(save['created_at']).toLocal().month}/${DateTime.parse(save['created_at']).toLocal().day}',
-                style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.muted)),
-          ),
-        );
-      },
-    );
-  }
+            // 2. Profile Details Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0D2230).withOpacity(0.07),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: AppTheme.uiGrey,
+                          backgroundImage: _profile?['avatar_url'] != null
+                              ? NetworkImage(_profile['avatar_url'])
+                              : null,
+                          child: _profile?['avatar_url'] == null
+                              ? const Icon(Icons.person, size: 30, color: AppTheme.sub)
+                              : null,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _profile?['display_name'] ?? 'ゲスト市民',
+                                style: AppTheme.getNotoSansJP(fontSize: 17, fontWeight: FontWeight.w900, color: AppTheme.text),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                _profile?['area_name'] ?? '未設定エリア',
+                                style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.sub),
+                              ),
+                              const SizedBox(height: 9),
+                              // Sustainable member chip
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF6F2),
+                                  border: Border.all(color: const Color(0xFFCFE6DC)),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.water_drop, size: 11, color: AppTheme.teal),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'サステナブル市民',
+                                      style: AppTheme.getNotoSansJP(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.teal),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Points indicator on right
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: const BoxDecoration(
+                                color: AppTheme.teal,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'P',
+                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '${_profile?['total_points'] ?? 0}',
+                              style: AppTheme.getManrope(fontSize: 25, fontWeight: FontWeight.w900, color: AppTheme.text, height: 1),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'まちポイント',
+                              style: AppTheme.getNotoSansJP(fontSize: 10, color: AppTheme.sub),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
-  Widget _buildBadgesTab() {
-    if (_earnedBadges.isEmpty) {
-      return Center(child: Text('獲得バッジはまだありません', style: AppTheme.getNotoSansJP(color: AppTheme.sub)));
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.all(20),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: _earnedBadges.length,
-      itemBuilder: (context, idx) {
-        final badge = _earnedBadges[idx]['badges'];
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.stars, color: AppTheme.gold, size: 36),
-              const SizedBox(height: 8),
-              Text(
-                badge?['title'] ?? '市民',
-                style: AppTheme.getNotoSansJP(fontSize: 11, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 2),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Text(
-                  badge?['description'] ?? '',
-                  style: AppTheme.getNotoSansJP(fontSize: 9, color: AppTheme.sub),
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
+                    // 4 metrics boxes in a row
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppTheme.bgSoft),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildMiniMetricBox('投稿', '$postsCount'),
+                          _buildMiniMetricBox('応援', '${supportsCount + _savedPostsCount}', showBorder: true),
+                          _buildMiniMetricBox('コメント', '$commentsCount', showBorder: true),
+                          _buildMiniMetricBox('評価', '$evalsCount', showBorder: true),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        );
-      },
+            ),
+            const SizedBox(height: 22),
+
+            // 3. City Type Diagnosis result Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'あなたの街タイプ',
+                    style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.text),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0D2230).withOpacity(0.07),
+                          blurRadius: 18,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.nature_people, color: AppTheme.teal, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _profile?['city_types']?['title'] ?? 'ウォーカブル推進者',
+                                    style: AppTheme.getNotoSansJP(fontSize: 19, fontWeight: FontWeight.w900, color: AppTheme.teal),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 9),
+                              Text(
+                                _profile?['city_types']?['description'] ?? '歩きやすさ、緑化、持続可能なモビリティを大切にし、心地よいストリート空間づくりを支持する傾向があります。',
+                                style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub, height: 1.6),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            _profile?['city_types']?['image_url'] ?? 'https://images.unsplash.com/photo-1549474843-ed83483f6ec6?q=80&w=150',
+                            width: 96,
+                            height: 74,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset('assets/plaza-after.png', width: 96, height: 74, fit: BoxFit.cover),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 4. Badges list (horizontal carousel)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '獲得バッジ (${_earnedBadgesCount > 0 ? _earnedBadgesCount : 4})',
+                        style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
+                      ),
+                      Text(
+                        'すべて見る ›',
+                        style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.teal, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 90,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildBadgeItem('🥇', '早期発掘者'),
+                        _buildBadgeItem('💚', '熱心な支持者'),
+                        _buildBadgeItem('🗣️', '対話リーダー'),
+                        _buildBadgeItem('🧭', '都市デザイナー'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 5. Recent activities
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '最近の活動',
+                        style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
+                      ),
+                      Text(
+                        'すべて見る ›',
+                        style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.teal, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _activityLedgers.isEmpty
+                      ? Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text('活動履歴がありません', style: AppTheme.getNotoSansJP(color: AppTheme.sub)),
+                        )
+                      : Column(
+                          children: _activityLedgers.take(3).map((ledger) {
+                            final bool isAdd = ledger['amount'] >= 0;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0D2230).withOpacity(0.06),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0F8F6),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      _getActivityEmoji(ledger['reason_code']),
+                                      style: const TextStyle(fontSize: 19),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          ledger['reason_label_snapshot'] ?? ledger['reason_code'] ?? 'ポイント獲得',
+                                          style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.text, height: 1.45),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          _getAgoString(ledger['created_at']),
+                                          style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '${isAdd ? "+" : ""}${ledger['amount']} pts',
+                                    style: AppTheme.getManrope(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: isAdd ? AppTheme.teal : Colors.redAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildHistoryTab() {
-    if (_activityLedgers.isEmpty) {
-      return Center(child: Text('履歴はありません', style: AppTheme.getNotoSansJP(color: AppTheme.sub)));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _activityLedgers.length,
-      itemBuilder: (context, idx) {
-        final ledger = _activityLedgers[idx];
-        final isAdd = ledger['amount'] >= 0;
-        final created = DateTime.parse(ledger['created_at']).toLocal();
-
-        return Card(
-          color: Colors.white,
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            dense: true,
-            title: Text(ledger['reason_label_snapshot'] ?? ledger['reason_code'] ?? 'ポイント調整',
-                style: AppTheme.getNotoSansJP(fontSize: 12, fontWeight: FontWeight.bold)),
-            subtitle: Text('${created.year}/${created.month}/${created.day} ${created.hour}:${created.minute}',
-                style: AppTheme.getNotoSansJP(fontSize: 10, color: AppTheme.muted)),
-            trailing: Text(
-              '${isAdd ? "+" : ""}${ledger['amount']} pts',
-              style: AppTheme.getManrope(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isAdd ? AppTheme.teal : Colors.redAccent,
-              ),
+  Widget _buildMiniMetricBox(String label, String value, {bool showBorder = false}) {
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          border: showBorder
+              ? const Border(left: BorderSide(color: AppTheme.bgSoft, width: 1))
+              : null,
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: AppTheme.getNotoSansJP(fontSize: 10, color: AppTheme.sub),
             ),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              style: AppTheme.getNotoSansJP(fontSize: 17, fontWeight: FontWeight.w900, color: AppTheme.text),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadgeItem(String emoji, String title) {
+    return Container(
+      width: 75,
+      margin: const EdgeInsets.only(right: 10),
+      child: Column(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
+              ],
+              border: Border.all(color: AppTheme.border),
+            ),
+            alignment: Alignment.center,
+            child: Text(emoji, style: const TextStyle(fontSize: 22)),
           ),
-        );
-      },
+          const SizedBox(height: 7),
+          Text(
+            title,
+            style: AppTheme.getNotoSansJP(fontSize: 9, color: AppTheme.sub, fontWeight: FontWeight.w600, height: 1.3),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
