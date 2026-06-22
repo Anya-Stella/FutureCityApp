@@ -105,47 +105,44 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
+  late final List<Widget> _screens;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const EvalScreen(),
-    const Placeholder(), // Index 2 is "Create" triggers screen overlay
-    const FeedbackScreen(),
-    const MyPageScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const HomeScreen(),
+      EvalScreen(onBack: () => _onNavigationTapped(0)),
+      CreateScreen(onBack: () => _onNavigationTapped(0)),
+      const FeedbackScreen(),
+      const MyPageScreen(),
+    ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DesktopDeviceWrapper.useLightStatusBar.value = (_currentIndex == 1);
+    });
+  }
 
   void _onNavigationTapped(int index) {
-    if (index == 2) {
-      // Open CreateScreen as a modal sheet
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => const FractionallySizedBox(
-          heightFactor: 0.92,
-          child: CreateScreen(),
-        ),
-      );
-    } else {
-      setState(() {
-        _currentIndex = index;
-      });
-      // Toggle mock status bar color: white text on Eval screen (index 1), dark text on others
-      DesktopDeviceWrapper.useLightStatusBar.value = (index == 1);
-    }
+    setState(() {
+      _currentIndex = index;
+    });
+    // Toggle mock status bar color: white text on Eval screen (index 1), dark text on others
+    DesktopDeviceWrapper.useLightStatusBar.value = (index == 1);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex == 2 ? 0 : _currentIndex, // Fallback to Home when index is 2
+        index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: CustomBottomNavigation(
-        currentIndex: _currentIndex,
-        onTap: _onNavigationTapped,
-      ),
+      bottomNavigationBar: _currentIndex == 1
+          ? null
+          : CustomBottomNavigation(
+              currentIndex: _currentIndex,
+              onTap: _onNavigationTapped,
+            ),
     );
   }
 }

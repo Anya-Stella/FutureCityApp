@@ -41,19 +41,19 @@ class PostCard extends StatelessWidget {
             // Image with 57% aspect ratio (height = 57% of width, which is aspect ratio of 1 / 0.57)
             AspectRatio(
               aspectRatio: 1 / 0.57,
-              child: imageUrl.startsWith('assets/') || imageUrl.startsWith('src/assets/')
-                  ? Image.asset(
-                      imageUrl.startsWith('src/') ? imageUrl.replaceFirst('src/', '') : imageUrl,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Image.asset(
-                        'assets/street-before.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppTheme.teal),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(Icons.broken_image, color: Colors.white24, size: 24),
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(12.0),

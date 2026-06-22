@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final query = supabase
           .from('posts')
-          .select('*, profiles(*), post_media(*), post_metrics(*)')
+          .select('*, profiles:profiles!posts_user_id_fkey(*), post_media(*), post_metrics(*)')
           .eq('status', 'published');
 
       final data = await query;
@@ -210,12 +210,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   : _projects.isEmpty
                       ? Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 22),
-                          child: ChallengeCard(
-                            title: '大宮駅東口歩行者空間化',
-                            description: 'みんなで、緑のある\n歩きたくなる駅前へ。',
-                            imageUrl: 'assets/challenge-cover.png',
-                            deadline: '7/31',
-                            onTap: () {},
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.bgSoft),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0D2230).withOpacity(0.04),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.emoji_flags_outlined, size: 36, color: AppTheme.sub),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '現在、開催中のチャレンジはありません。',
+                                  style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13, fontWeight: FontWeight.w600),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         )
                       : Padding(
@@ -259,19 +281,37 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _isLoadingPosts
                   ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
-                  : GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: 0.74,
-                      ),
-                      itemCount: _popularPosts.length,
-                      itemBuilder: (context, idx) {
-                        final post = _popularPosts[idx];
+                  : _popularPosts.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.bgSoft),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '投稿されたアイデアはまだありません。',
+                              style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                            childAspectRatio: 0.74,
+                          ),
+                          itemCount: _popularPosts.length,
+                          itemBuilder: (context, idx) {
+                            final post = _popularPosts[idx];
                         final media = post['post_media'] as List?;
                         final primaryImg = media != null && media.isNotEmpty
                             ? media.firstWhere((m) => m['media_type'] == 'generated', orElse: () => media.first)['url']
@@ -319,13 +359,31 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _isLoadingPosts
                   ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
-                  : ListView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-                      itemCount: _newPosts.length,
-                      itemBuilder: (context, idx) {
-                        final post = _newPosts[idx];
+                  : _newPosts.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.bgSoft),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '最新の投稿はまだありません。',
+                              style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          itemCount: _newPosts.length,
+                          itemBuilder: (context, idx) {
+                            final post = _newPosts[idx];
                         final media = post['post_media'] as List?;
                         final primaryImg = media != null && media.isNotEmpty
                             ? media.firstWhere((m) => m['media_type'] == 'generated', orElse: () => media.first)['url']
@@ -357,10 +415,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                     width: 74,
                                     height: 74,
                                     child: primaryImg.isNotEmpty
-                                        ? (primaryImg.startsWith('assets/') || primaryImg.startsWith('src/assets/')
-                                            ? Image.asset(primaryImg.startsWith('src/') ? primaryImg.replaceFirst('src/', '') : primaryImg, fit: BoxFit.cover)
-                                            : Image.network(primaryImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover)))
-                                        : Image.asset('assets/street-before.png', fit: BoxFit.cover),
+                                        ? Image.network(
+                                            primaryImg,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const Center(
+                                                child: CircularProgressIndicator(color: AppTheme.teal),
+                                              );
+                                            },
+                                            errorBuilder: (_, __, ___) => const Center(
+                                              child: Icon(Icons.broken_image, color: Colors.white24, size: 24),
+                                            ),
+                                          )
+                                        : Container(color: AppTheme.uiGrey),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -523,6 +591,7 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
       }
       setState(() => _isSaved = !_isSaved);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('エラーが発生しました: $e')),
       );
@@ -546,6 +615,7 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
       _commentController.clear();
       _fetchComments();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('コメント送信に失敗しました: $e')),
       );
@@ -682,12 +752,32 @@ class _PostDetailSheetState extends State<PostDetailSheet> {
                           children: [
                             Positioned.fill(
                               child: _showAfter
-                                  ? (afterImg.startsWith('assets/') || afterImg.startsWith('src/assets/')
-                                      ? Image.asset(afterImg.startsWith('src/') ? afterImg.replaceFirst('src/', '') : afterImg, fit: BoxFit.cover)
-                                      : Image.network(afterImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover)))
-                                  : (beforeImg.startsWith('assets/') || beforeImg.startsWith('src/assets/')
-                                      ? Image.asset(beforeImg.startsWith('src/') ? beforeImg.replaceFirst('src/', '') : beforeImg, fit: BoxFit.cover)
-                                      : Image.network(beforeImg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/street-before.png', fit: BoxFit.cover))),
+                                  ? Image.network(
+                                      afterImg,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(color: AppTheme.teal),
+                                        );
+                                      },
+                                      errorBuilder: (_, __, ___) => const Center(
+                                        child: Icon(Icons.broken_image, color: Colors.white24, size: 30),
+                                      ),
+                                    )
+                                  : Image.network(
+                                      beforeImg,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(color: AppTheme.teal),
+                                        );
+                                      },
+                                      errorBuilder: (_, __, ___) => const Center(
+                                        child: Icon(Icons.broken_image, color: Colors.white24, size: 30),
+                                      ),
+                                    ),
                             ),
                             // Badge label
                             Positioned(

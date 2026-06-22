@@ -5,7 +5,8 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart'; // To reuse the beautiful PostDetailSheet
 
 class EvalScreen extends StatefulWidget {
-  const EvalScreen({super.key});
+  final VoidCallback? onBack;
+  const EvalScreen({super.key, this.onBack});
 
   @override
   State<EvalScreen> createState() => _EvalScreenState();
@@ -17,6 +18,7 @@ class _EvalScreenState extends State<EvalScreen> {
   bool _isLoading = true;
   final Stopwatch _dwellStopwatch = Stopwatch();
   bool _openedDetail = false;
+  int _sessionEvalCount = 0;
 
   @override
   void initState() {
@@ -25,7 +27,10 @@ class _EvalScreenState extends State<EvalScreen> {
   }
 
   Future<void> _fetchSwipeFeed() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _sessionEvalCount = 0;
+    });
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return;
 
@@ -33,7 +38,7 @@ class _EvalScreenState extends State<EvalScreen> {
       // Fetch posts and filter out already evaluated ones in Dart
       final response = await supabase
           .from('posts')
-          .select('*, post_media(*), post_metrics(*), profiles(display_name, avatar_url, area_name), evaluations(user_id)')
+          .select('*, post_media(*), post_metrics(*), post_tags(tags(*)), profiles:profiles!posts_user_id_fkey(display_name, avatar_url, area_name), evaluations(user_id)')
           .eq('status', 'published');
 
       final list = response as List;
@@ -94,10 +99,12 @@ class _EvalScreenState extends State<EvalScreen> {
       if (mounted) {
         setState(() {
           _unevaluatedPosts.removeAt(0);
+          _sessionEvalCount++;
         });
         _resetTimer();
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('評価の保存に失敗しました: $e'),
@@ -168,7 +175,9 @@ class _EvalScreenState extends State<EvalScreen> {
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      // Optional: Navigate to main tab index 0
+                                      if (widget.onBack != null) {
+                                        widget.onBack!();
+                                      }
                                     },
                                     child: Container(
                                       width: 30,
@@ -432,8 +441,7 @@ class _EvalScreenState extends State<EvalScreen> {
   }
 
   Widget _buildProgressBar() {
-    final int current = 10 - _unevaluatedPosts.length;
-    final double pct = (current / 10.0).clamp(0.0, 1.0);
+    final double pct = (_sessionEvalCount / 10.0).clamp(0.0, 1.0);
 
     return Column(
       children: [
@@ -441,7 +449,7 @@ class _EvalScreenState extends State<EvalScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              '$current ',
+              '$_sessionEvalCount ',
               style: AppTheme.getNotoSansJP(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
             ),
             Text(
@@ -577,7 +585,19 @@ class _EvalScreenState extends State<EvalScreen> {
                   children: [
                     Positioned.fill(
                       child: primaryImg.isNotEmpty
-                          ? Image.network(primaryImg, fit: BoxFit.cover)
+                          ? Image.network(
+                              primaryImg,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(color: AppTheme.teal),
+                                );
+                              },
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(Icons.broken_image, color: AppTheme.sub, size: 30),
+                              ),
+                            )
                           : Container(color: AppTheme.border),
                     ),
                     // Fresh badge
@@ -604,36 +624,28 @@ class _EvalScreenState extends State<EvalScreen> {
           ),
 
           // Tags row
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, top: 11),
-            child: Wrap(
-              spacing: 6,
-              children: [
-                Container(
+          () {
+            final ptList = post['post_tags'] as List?;
+            final tagsList = ptList?.map((pt) => pt['tags']?['title'] as String?).whereType<String>().toList() ?? [];
+            if (tagsList.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 11),
+              child: Wrap(
+                spacing: 6,
+                children: tagsList.map((tag) => Container(
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppTheme.bg,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '#歩道拡幅',
+                    '#$tag',
                     style: AppTheme.getNotoSansJP(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.sub),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '#景観向上',
-                    style: AppTheme.getNotoSansJP(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.sub),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                )).toList(),
+              ),
+            );
+          }(),
 
           // Bottom Stats
           Padding(
@@ -671,6 +683,9 @@ class _EvalScreenState extends State<EvalScreen> {
         ? (double.tryParse(metrics['support_rate'].toString()) ?? 0.0)
         : 0.64;
 
+    final ptList = post['post_tags'] as List?;
+    final firstTag = ptList != null && ptList.isNotEmpty ? (ptList.first['tags']?['title'] ?? '提案') : '提案';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
@@ -694,7 +709,7 @@ class _EvalScreenState extends State<EvalScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '歩道拡幅案への支持 ',
+                '${firstTag}案への支持 ',
                 style: AppTheme.getNotoSansJP(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white),
               ),
               Text(
@@ -769,24 +784,58 @@ class _EvalScreenState extends State<EvalScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                '10件の評価ありがとうございます。\nあなたの声がまちづくりに届きます。',
+                '$_sessionEvalCount件の評価ありがとうございます。\nあなたの声がまちづくりに届きます。',
                 style: AppTheme.getNotoSansJP(fontSize: 13, color: AppTheme.sub, height: 1.7),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7E6),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFF0E2BF)),
-                ),
-                child: const Text(
-                  '＋30 まちポイント獲得',
-                  style: TextStyle(color: Color(0xFF9A7B2E), fontSize: 13, fontWeight: FontWeight.w700),
+              _sessionEvalCount >= 10
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7E6),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFFF0E2BF)),
+                      ),
+                      child: const Text(
+                        '🎉 ＋30 まちポイント獲得！',
+                        style: TextStyle(color: Color(0xFF9A7B2E), fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.black.withOpacity(0.1)),
+                      ),
+                      child: Text(
+                        '目標クリアでポイント獲得！ ($_sessionEvalCount/10)',
+                        style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+              const SizedBox(height: 22),
+              GestureDetector(
+                onTap: widget.onBack,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.teal,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'ホームに戻る',
+                    style: AppTheme.getNotoSansJP(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               GestureDetector(
                 onTap: _fetchSwipeFeed,
                 child: Text(

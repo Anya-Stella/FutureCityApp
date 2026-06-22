@@ -38,19 +38,19 @@ class ChallengeCard extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
-              child: imageUrl.startsWith('assets/') || imageUrl.startsWith('src/assets/')
-                  ? Image.asset(
-                      imageUrl.startsWith('src/') ? imageUrl.replaceFirst('src/', '') : imageUrl,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Image.asset(
-                        'assets/challenge-cover.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppTheme.teal),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(Icons.broken_image, color: Colors.white24, size: 30),
+                ),
+              ),
             ),
             // Gradient Overlay
             Positioned.fill(
@@ -84,7 +84,7 @@ class ChallengeCard extends StatelessWidget {
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
-                        letterSpacing: 0.22 * 24, // 0.22em letter spacing
+                        letterSpacing: 5.28, // 0.22 * 24
                         height: 1.25,
                       ),
                     ),

@@ -5,7 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 
 class CreateScreen extends StatefulWidget {
-  const CreateScreen({super.key});
+  final VoidCallback? onBack;
+  const CreateScreen({super.key, this.onBack});
 
   @override
   State<CreateScreen> createState() => _CreateScreenState();
@@ -16,6 +17,7 @@ class _CreateScreenState extends State<CreateScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
+  final _addressController = TextEditingController();
 
   List<dynamic> _projects = [];
   String? _selectedProjectId;
@@ -24,22 +26,39 @@ class _CreateScreenState extends State<CreateScreen> {
   final List<Map<String, String>> _presets = [
     {
       'name': '寂れた広場',
-      'url': 'https://images.unsplash.com/photo-1549474843-ed83483f6ec6?q=80&w=600',
+      'url': 'https://picsum.photos/seed/square/600/600',
     },
     {
       'name': 'シャッター通り商店街',
-      'url': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?q=80&w=600',
+      'url': 'https://picsum.photos/seed/street/600/600',
     },
     {
       'name': 'コンクリートの空き地',
-      'url': 'https://images.unsplash.com/photo-1596701062351-df1f8d368a85?q=80&w=600',
+      'url': 'https://picsum.photos/seed/vacant/600/600',
     }
   ];
   String? _selectedPresetUrl;
 
   // Tags list
-  final List<String> _availableTags = ['歩道拡幅', '緑化', 'ベンチ', '照明', 'バリアフリー', 'アート'];
+  final List<String> _fallbackTags = ['歩道拡幅', '緑化', 'ベンチ', '照明', 'バリアフリー', 'アート'];
+  List<dynamic> _dbTags = [];
   final Set<String> _selectedTags = {'歩道拡幅'};
+
+  static const Map<String, String> _fallbackTagIds = {
+    '緑化': 'a0000000-0000-0000-0000-000000000001',
+    'ベンチ': 'a0000000-0000-0000-0000-000000000002',
+    '歩道拡幅': 'a0000000-0000-0000-0000-000000000003',
+    '日陰': 'a0000000-0000-0000-0000-000000000004',
+    '自転車レーン': 'a0000000-0000-0000-0000-000000000005',
+    '交通抑制': 'a0000000-0000-0000-0000-000000000006',
+    '照明': 'a0000000-0000-0000-0000-000000000007',
+    'バリアフリー': 'a0000000-0000-0000-0000-000000000008',
+    'アート': 'a0000000-0000-0000-0000-000000000002',
+  };
+
+  List<String> get _displayTags => _dbTags.isNotEmpty
+      ? _dbTags.map((t) => t['title'] as String).toList()
+      : _fallbackTags;
 
   // Job Flow
   bool _isGenerating = false;
@@ -49,14 +68,16 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedPresetUrl = _presets[0]['url'];
+    _selectedPresetUrl = _presets[1]['url'];
     _fetchProjects();
+    _fetchTags();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _bodyController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -68,6 +89,21 @@ class _CreateScreenState extends State<CreateScreen> {
       });
     } catch (e) {
       debugPrint('Error getting projects: $e');
+    }
+  }
+
+  Future<void> _fetchTags() async {
+    try {
+      final data = await supabase.from('tags').select('*').order('title');
+      if (mounted && data != null && data.isNotEmpty) {
+        setState(() {
+          _dbTags = data;
+          _selectedTags.clear();
+          _selectedTags.add(_dbTags.first['title'] as String);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching tags: $e');
     }
   }
 
@@ -88,11 +124,28 @@ class _CreateScreenState extends State<CreateScreen> {
     if (uid == null) return;
 
     try {
+      // Find tag IDs
+      final List<String> selectedTagIds = [];
+      for (final title in _selectedTags) {
+        final dbTag = _dbTags.firstWhere((t) => t['title'] == title, orElse: () => null);
+        if (dbTag != null) {
+          selectedTagIds.add(dbTag['id'] as String);
+        } else if (_fallbackTagIds.containsKey(title)) {
+          selectedTagIds.add(_fallbackTagIds[title]!);
+        }
+      }
+
+      final tagListString = _selectedTags.join(', ');
+      final prompt = 'A beautiful futuristic urban space in Japan, incorporating: $tagListString. ${_titleController.text.trim()}. High resolution, realistic.';
+
       // 1. Insert job to ai_generation_jobs
       final job = await supabase.from('ai_generation_jobs').insert({
         'user_id': uid,
+        'project_id': _selectedProjectId,
+        'input_image_url': _selectedPresetUrl,
+        'selected_tag_ids': selectedTagIds,
         'status': 'queued',
-        'prompt': 'A beautiful futuristic park with dense trees, clean walkpaths, modern white benches, and smart solar panel lights, warm daylight',
+        'prompt': prompt,
       }).select().single();
 
       final jobId = job['id'];
@@ -117,15 +170,14 @@ class _CreateScreenState extends State<CreateScreen> {
 
           final status = currentJob['status'] as String;
 
-          if (mounted) {
-            setState(() {
-              if (status == 'queued') {
-                _stepLabel = 'サーバーの空きを待っています...';
-              } else if (status == 'running') {
-                _stepLabel = 'AI画質レンダリングを処理しています... (50%)';
-              }
-            });
-          }
+          if (!mounted) return;
+          setState(() {
+            if (status == 'queued') {
+              _stepLabel = 'サーバーの空きを待っています...';
+            } else if (status == 'running') {
+              _stepLabel = 'AI画質レンダリングを処理しています... (50%)';
+            }
+          });
 
           if (status == 'succeeded') {
             timer.cancel();
@@ -149,10 +201,11 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   void _finishJobWithFallback() {
-    // Generate a fallback futuristic mock visual when OpenAI credentials aren't initialized
+    // Generate a fallback futuristic mock visual depending on the selected tags
+    final keywords = _selectedTags.isNotEmpty ? _selectedTags.join(',') : 'city,architecture';
     setState(() {
       _isGenerating = false;
-      _generatedImageUrl = 'https://images.unsplash.com/photo-1444724338557-eb0407a539d4?q=80&w=600'; // mock future park image
+      _generatedImageUrl = 'https://loremflickr.com/600/600/futuristic,$keywords';
     });
   }
 
@@ -169,6 +222,8 @@ class _CreateScreenState extends State<CreateScreen> {
     if (uid == null) return;
 
     try {
+      final String addressText = _addressController.text.trim();
+
       // 1. Insert post
       final post = await supabase.from('posts').insert({
         'user_id': uid,
@@ -176,7 +231,7 @@ class _CreateScreenState extends State<CreateScreen> {
         'title': _titleController.text.trim(),
         'body': _bodyController.text.trim(),
         'status': 'published',
-        'address_text': '未来都市指定計画エリア 3工区',
+        'address_text': addressText,
       }).select().single();
 
       // 2. Insert media items
@@ -193,43 +248,71 @@ class _CreateScreenState extends State<CreateScreen> {
         }
       ]);
 
-      if (mounted) {
-        Navigator.of(context).pop(); // Close create modal
+      // 3. Insert post tags relation
+      final List<String> tagIdsToInsert = [];
+      for (final title in _selectedTags) {
+        final dbTag = _dbTags.firstWhere(
+          (t) => t['title'] == title,
+          orElse: () => null,
+        );
+        if (dbTag != null) {
+          tagIdsToInsert.add(dbTag['id'] as String);
+        } else if (_fallbackTagIds.containsKey(title)) {
+          tagIdsToInsert.add(_fallbackTagIds[title]!);
+        }
+      }
 
-        // Show celebratory success popup
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('🎉 投稿に成功しました！'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('あなたの素晴らしいアイデアが公開されました。'),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.teal.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '+100 まちポイント獲得！',
-                    style: AppTheme.getNotoSansJP(color: AppTheme.teal, fontWeight: FontWeight.bold),
-                  ),
-                )
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('閉じる'),
-              )
-            ],
-          ),
+      if (tagIdsToInsert.isNotEmpty) {
+        await supabase.from('post_tags').insert(
+          tagIdsToInsert.map((tid) => {
+            'post_id': post['id'],
+            'tag_id': tid,
+          }).toList(),
         );
       }
 
+      if (!mounted) return;
+
+      if (widget.onBack != null) {
+        widget.onBack!();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+
+      // Show celebratory success popup
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('🎉 投稿に成功しました！'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('あなたの素晴らしいアイデアが公開されました。'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.teal.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '+100 まちポイント獲得！',
+                  style: AppTheme.getNotoSansJP(color: AppTheme.teal, fontWeight: FontWeight.bold),
+                ),
+              )
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('閉じる'),
+            )
+          ],
+        ),
+      );
+
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('投稿の登録に失敗しました: $e')),
       );
@@ -238,35 +321,25 @@ class _CreateScreenState extends State<CreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // Drag indicator bar
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
-          // Custom Header
-          Container(
-            padding: const EdgeInsets.only(left: 18, right: 18, bottom: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Custom Header
+            Container(
+              padding: const EdgeInsets.only(left: 18, right: 18, top: 12, bottom: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      if (widget.onBack != null) {
+                        widget.onBack!();
+                      } else {
+                        Navigator.of(context).maybePop();
+                      }
+                    },
                   child: Container(
                     width: 38,
                     height: 38,
@@ -348,7 +421,19 @@ class _CreateScreenState extends State<CreateScreen> {
                       children: [
                         Positioned.fill(
                           child: _selectedPresetUrl != null
-                              ? Image.network(_selectedPresetUrl!, fit: BoxFit.cover)
+                              ? Image.network(
+                                  _selectedPresetUrl!,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(color: AppTheme.teal),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) => const Center(
+                                    child: Icon(Icons.broken_image, color: Colors.white24, size: 30),
+                                  ),
+                                )
                               : Container(color: AppTheme.border),
                         ),
                         Positioned.fill(
@@ -399,8 +484,10 @@ class _CreateScreenState extends State<CreateScreen> {
                   const SizedBox(height: 20),
 
                   // Preset Picker Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
                     children: _presets.map((preset) {
                       final bool isSel = _selectedPresetUrl == preset['url'];
                       return GestureDetector(
@@ -463,7 +550,7 @@ class _CreateScreenState extends State<CreateScreen> {
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
-                    children: _availableTags.map((tag) {
+                    children: _displayTags.map((tag) {
                       final bool isSelected = _selectedTags.contains(tag);
                       return GestureDetector(
                         onTap: () {
@@ -542,18 +629,24 @@ class _CreateScreenState extends State<CreateScreen> {
                     child: Stack(
                       children: [
                         // Show mock background
-                        Positioned.fill(
+                         Positioned.fill(
                           child: _generatedImageUrl != null
-                              ? Image.network(_generatedImageUrl!, fit: BoxFit.cover)
-                              : (_selectedPresetUrl != null
-                                  ? ColorFiltered(
-                                      colorFilter: ColorFilter.mode(
-                                        Colors.black.withOpacity(0.4),
-                                        BlendMode.multiply,
-                                      ),
-                                      child: Image.network(_selectedPresetUrl!, fit: BoxFit.cover),
-                                    )
-                                  : Container(color: AppTheme.border)),
+                              ? Image.network(
+                                  _generatedImageUrl!,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(color: AppTheme.teal),
+                                    );
+                                  },
+                                  errorBuilder: (_, __, ___) => const Center(
+                                    child: Icon(Icons.broken_image, color: AppTheme.sub, size: 30),
+                                  ),
+                                )
+                              : Container(
+                                  color: const Color(0xFF07121A),
+                                ),
                         ),
 
                         // Spinner overlay when generating
@@ -683,6 +776,18 @@ class _CreateScreenState extends State<CreateScreen> {
                     const SizedBox(height: 16),
 
                     TextFormField(
+                      controller: _addressController,
+                      style: AppTheme.getNotoSansJP(fontSize: 14),
+                      decoration: InputDecoration(
+                        labelText: '実施予定エリア・場所',
+                        hintText: '例: 未来都市指定計画エリア 3工区',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      validator: (val) => (val == null || val.isEmpty) ? 'エリア・場所を入力してください' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
                       controller: _titleController,
                       style: AppTheme.getNotoSansJP(fontSize: 14),
                       decoration: InputDecoration(
@@ -747,9 +852,10 @@ class _CreateScreenState extends State<CreateScreen> {
                 ],
               ),
             ),
-          )
+          ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

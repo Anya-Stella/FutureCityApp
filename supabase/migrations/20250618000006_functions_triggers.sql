@@ -328,12 +328,13 @@ begin
   perform public.app_refresh_post_metrics(v_post);
 
   -- コメント作成時のポイント（公開コメントのみ・INSERT時）
-  if tg_table_name = 'comments' and tg_op = 'INSERT'
-     and new.status = 'published' then
-    perform public.app_award_points(
-      new.user_id, 'comment_created', null, new.post_id,
-      'comment:' || new.id::text, null, '{}'::jsonb
-    );
+  if tg_table_name = 'comments' then
+    if tg_op = 'INSERT' and new.status = 'published' then
+      perform public.app_award_points(
+        new.user_id, 'comment_created', null, new.post_id,
+        'comment:' || new.id::text, null, '{}'::jsonb
+      );
+    end if;
   end if;
   return coalesce(new, old);
 end;

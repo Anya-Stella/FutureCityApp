@@ -14,6 +14,9 @@ class CustomBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double safeBottom = MediaQuery.of(context).padding.bottom;
+    final double bottomPadding = safeBottom > 0 ? 0.0 : 26.0;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xF7FFFFFF), // background: rgba(255, 255, 255, 0.97)
@@ -24,7 +27,7 @@ class CustomBottomNavigation extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 26, left: 4, right: 4),
+          padding: EdgeInsets.only(top: 12, bottom: bottomPadding, left: 4, right: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -83,7 +86,7 @@ class CustomBottomNavigation extends StatelessWidget {
     required String Function(String fill, String stroke) svgString,
   }) {
     final bool isActive = currentIndex == index;
-    final String fill = isActive ? 'rgba(0,108,116,0.06)' : 'none';
+    final String fill = isActive ? '#006C74' : 'none';
     final String stroke = isActive ? '#006C74' : '#6E777C';
     final Color textColor = isActive ? AppTheme.teal : AppTheme.sub;
     final FontWeight fontWeight = isActive ? FontWeight.w700 : FontWeight.w600;

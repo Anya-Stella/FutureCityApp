@@ -17,8 +17,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
   dynamic _profile;
   List<dynamic> _myPosts = [];
   List<dynamic> _activityLedgers = [];
+  List<dynamic> _earnedBadges = [];
   int _savedPostsCount = 0;
   int _earnedBadgesCount = 0;
+  int _evalsCount = 0;
+  int _commentsCount = 0;
+  int _supportsCount = 0;
   bool _isLoading = true;
 
   @override
@@ -67,13 +71,36 @@ class _MyPageScreenState extends State<MyPageScreen> {
           .eq('user_id', uid)
           .order('created_at', ascending: false);
 
+      // 6. Fetch evaluations count
+      final evalsCountRes = await supabase
+          .from('evaluations')
+          .select('id')
+          .eq('user_id', uid);
+
+      // 7. Fetch comments count
+      final commentsCountRes = await supabase
+          .from('comments')
+          .select('id')
+          .eq('user_id', uid);
+
+      // 8. Fetch supports count
+      final supportsCountRes = await supabase
+          .from('evaluations')
+          .select('id')
+          .eq('user_id', uid)
+          .eq('action', 'support');
+
       if (mounted) {
         setState(() {
           _profile = prof;
           _myPosts = posts;
           _savedPostsCount = saves.length;
           _earnedBadgesCount = badges.length;
+          _earnedBadges = badges;
           _activityLedgers = ledgers;
+          _evalsCount = (evalsCountRes as List).length;
+          _commentsCount = (commentsCountRes as List).length;
+          _supportsCount = (supportsCountRes as List).length;
           _isLoading = false;
         });
       }
@@ -106,13 +133,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
             onPressed: () async {
               final uid = supabase.auth.currentUser?.id;
               if (uid == null) return;
+              final navigator = Navigator.of(context);
               try {
                 await supabase.from('profiles').update({
                   'display_name': nameController.text.trim(),
                   'area_name': areaController.text.trim(),
                   'resident_type': residentController.text.trim(),
                 }).eq('id', uid);
-                Navigator.pop(context);
+                if (!mounted) return;
+                navigator.pop();
                 _loadAllProfileData();
               } catch (e) {
                 debugPrint('Failed to update profile: $e');
@@ -165,10 +194,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
     }
 
     final int postsCount = _myPosts.length;
-    // Compute or mock remaining stats for design token parity
-    final int supportsCount = _activityLedgers.where((l) => l['reason_code'] == 'support_post' || l['reason_code'] == 'early_evaluation').length + 24;
-    final int commentsCount = _activityLedgers.where((l) => l['reason_code'] == 'comment').length + 15;
-    final int evalsCount = _activityLedgers.where((l) => l['reason_code'] == 'evaluation').length + 38;
+    final int supportsCount = _supportsCount;
+    final int commentsCount = _commentsCount;
+    final int evalsCount = _evalsCount;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -244,11 +272,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
                               Text(
                                 _profile?['display_name'] ?? 'ゲスト市民',
                                 style: AppTheme.getNotoSansJP(fontSize: 17, fontWeight: FontWeight.w900, color: AppTheme.text),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                               const SizedBox(height: 1),
                               Text(
                                 _profile?['area_name'] ?? '未設定エリア',
                                 style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.sub),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                               const SizedBox(height: 9),
                               // Sustainable member chip
@@ -360,17 +392,35 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.nature_people, color: AppTheme.teal, size: 20),
+                                  Icon(
+                                    _profile?['city_types']?['title'] != null
+                                        ? Icons.water_drop
+                                        : Icons.hourglass_empty,
+                                    color: _profile?['city_types']?['title'] != null
+                                        ? AppTheme.teal
+                                        : AppTheme.sub,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    _profile?['city_types']?['title'] ?? 'ウォーカブル推進者',
-                                    style: AppTheme.getNotoSansJP(fontSize: 19, fontWeight: FontWeight.w900, color: AppTheme.teal),
+                                  Expanded(
+                                    child: Text(
+                                      _profile?['city_types']?['title'] ?? '計測中。。。',
+                                      style: AppTheme.getNotoSansJP(
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w900,
+                                        color: _profile?['city_types']?['title'] != null
+                                            ? AppTheme.teal
+                                            : AppTheme.sub,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 9),
                               Text(
-                                _profile?['city_types']?['description'] ?? '歩きやすさ、緑化、持続可能なモビリティを大切にし、心地よいストリート空間づくりを支持する傾向があります。',
+                                _profile?['city_types']?['description'] ?? 'スワイプ評価やアイデア投稿を続けると、あなたの街タイプが自動で計測・表示されます。',
                                 style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub, height: 1.6),
                               ),
                             ],
@@ -379,13 +429,36 @@ class _MyPageScreenState extends State<MyPageScreen> {
                         const SizedBox(width: 14),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            _profile?['city_types']?['image_url'] ?? 'https://images.unsplash.com/photo-1549474843-ed83483f6ec6?q=80&w=150',
-                            width: 96,
-                            height: 74,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Image.asset('assets/plaza-after.png', width: 96, height: 74, fit: BoxFit.cover),
-                          ),
+                          child: _profile?['city_types']?['image_url'] != null
+                              ? Image.network(
+                                  _profile['city_types']['image_url'],
+                                  width: 96,
+                                  height: 74,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const SizedBox(
+                                      width: 96,
+                                      height: 74,
+                                      child: Center(
+                                        child: CircularProgressIndicator(color: AppTheme.teal),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (_, __, ___) => const SizedBox(
+                                    width: 96,
+                                    height: 74,
+                                    child: Center(
+                                      child: Icon(Icons.broken_image, color: AppTheme.sub, size: 28),
+                                    ),
+                                  ),
+                                )
+                              : Container(
+                                  width: 96,
+                                  height: 74,
+                                  color: AppTheme.uiGrey,
+                                  child: const Icon(Icons.analytics_outlined, color: AppTheme.sub, size: 28),
+                                ),
                         ),
                       ],
                     ),
@@ -395,8 +468,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 4. Badges list (horizontal carousel)
-            Padding(
+             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Column(
                 children: [
@@ -404,7 +476,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '獲得バッジ (${_earnedBadgesCount > 0 ? _earnedBadgesCount : 4})',
+                        '獲得バッジ ($_earnedBadgesCount)',
                         style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
                       ),
                       Text(
@@ -414,18 +486,35 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 90,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildBadgeItem('🥇', '早期発掘者'),
-                        _buildBadgeItem('💚', '熱心な支持者'),
-                        _buildBadgeItem('🗣️', '対話リーダー'),
-                        _buildBadgeItem('🧭', '都市デザイナー'),
-                      ],
-                    ),
-                  ),
+                  _earnedBadges.isEmpty
+                      ? Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppTheme.bgSoft),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '獲得したバッジはまだありません。',
+                            style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13),
+                          ),
+                        )
+                      : SizedBox(
+                          height: 90,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _earnedBadges.length,
+                            itemBuilder: (context, index) {
+                              final b = _earnedBadges[index]['badges'];
+                              return _buildBadgeItem(
+                                b?['icon_emoji'] ?? '🏅',
+                                b?['name'] ?? 'バッジ',
+                              );
+                            },
+                          ),
+                        ),
                 ],
               ),
             ),

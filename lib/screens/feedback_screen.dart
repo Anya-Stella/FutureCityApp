@@ -1,6 +1,7 @@
 // lib/screens/feedback_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/app_theme.dart';
 
 class FeedbackScreen extends StatefulWidget {
@@ -17,6 +18,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   // Stats Data
   int _evalsCount = 0;
   List<dynamic> _earlySupportedPosts = [];
+  dynamic _topReview;
+  List<double> _chartValues = const [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  double _percentChange = 0.0;
+  List<Map<String, dynamic>> _topSupportedTags = [];
 
   // Leaderboard Rankings
   List<dynamic> _rankings = [];
@@ -35,30 +40,116 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     if (uid == null) return;
 
     try {
-      // 1. Weekly evaluations count
-      final weekAgo = DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String();
+      // 1. Weekly evaluations count & percentage change (compare last 7 days vs 7-14 days ago)
+      final nowTime = DateTime.now();
+      final weekAgo = nowTime.subtract(const Duration(days: 7));
+      final twoWeeksAgo = nowTime.subtract(const Duration(days: 14));
+
       final evalsResponse = await supabase
           .from('evaluations')
-          .select('id, action')
+          .select('id, action, created_at')
           .eq('user_id', uid)
-          .gte('created_at', weekAgo);
+          .gte('created_at', twoWeeksAgo.toUtc().toIso8601String());
 
       final evalsList = evalsResponse as List;
-      final totalEvals = evalsList.length;
+      int thisWeekCount = 0;
+      int lastWeekCount = 0;
+
+      final List<double> chartValues = List.filled(7, 0.0);
+      final counts = List.filled(7, 0);
+
+      for (final item in evalsList) {
+        try {
+          final dt = DateTime.parse(item['created_at']).toLocal();
+          if (dt.isAfter(weekAgo)) {
+            thisWeekCount++;
+            final idx = dt.weekday - 1; // 0 = Mon, 6 = Sun
+            if (idx >= 0 && idx < 7) {
+              counts[idx]++;
+            }
+          } else {
+            lastWeekCount++;
+          }
+        } catch (_) {}
+      }
+
+      final maxCount = counts.reduce((a, b) => a > b ? a : b);
+      if (maxCount > 0) {
+        for (int i = 0; i < 7; i++) {
+          chartValues[i] = counts[i] / maxCount;
+        }
+      }
+
+      double percentChange = 0.0;
+      if (lastWeekCount > 0) {
+        percentChange = ((thisWeekCount - lastWeekCount) / lastWeekCount) * 100;
+      } else if (thisWeekCount > 0) {
+        percentChange = 100.0;
+      }
 
       // 2. Early supported posts
       final earlyEvals = await supabase
           .from('evaluations')
-          .select('*, posts(*, post_media(*), post_metrics(*))')
+          .select('*, posts(*, profiles:profiles!posts_user_id_fkey(display_name, avatar_url), post_media(*), post_metrics(*))')
           .eq('user_id', uid)
           .eq('action', 'support')
           .lte('support_count_at_evaluation', 5)
           .limit(3);
 
+      // 3. Top review
+      final comments = await supabase
+          .from('comments')
+          .select('*, profiles(display_name, area_name), posts(title, post_metrics(support_count))')
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      // 4. Frequently supported themes/tags
+      final tagStatsResponse = await supabase
+          .from('evaluations')
+          .select('posts(post_tags(tags(title)))')
+          .eq('user_id', uid)
+          .eq('action', 'support');
+
+      final Map<String, int> tagCounts = {};
+      if (tagStatsResponse != null) {
+        for (final item in tagStatsResponse as List) {
+          final post = item['posts'];
+          if (post != null) {
+            final postTags = post['post_tags'] as List?;
+            if (postTags != null) {
+              for (final pt in postTags) {
+                final tag = pt['tags'];
+                if (tag != null) {
+                  final title = tag['title'] as String?;
+                  if (title != null) {
+                    tagCounts[title] = (tagCounts[title] ?? 0) + 1;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      final sortedTags = tagCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final topSupportedTags = sortedTags
+          .take(4)
+          .map((e) => {'title': e.key, 'count': e.value})
+          .toList();
+
       if (mounted) {
         setState(() {
-          _evalsCount = totalEvals;
+          _evalsCount = thisWeekCount;
+          _percentChange = percentChange;
+          _chartValues = chartValues;
           _earlySupportedPosts = earlyEvals;
+          _topSupportedTags = topSupportedTags;
+          if (comments != null && comments.isNotEmpty) {
+            _topReview = comments.first;
+          } else {
+            _topReview = null;
+          }
         });
       }
     } catch (e) {
@@ -75,7 +166,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           .select('*, profiles(display_name, avatar_url)')
           .eq('ranking_type', _selectedRankType)
           .order('rank', ascending: true)
-          .limit(5); // Show top 5 for cleaner mockup layout
+          .limit(3); // Match top 3 from HTML prototype
 
       if (mounted) {
         setState(() {
@@ -86,6 +177,18 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     } catch (e) {
       debugPrint('Error getting rankings: $e');
       if (mounted) setState(() => _isLoadingRankings = false);
+    }
+  }
+
+  String _getAgoString(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final diff = DateTime.now().difference(date);
+      if (diff.inDays >= 1) return '${diff.inDays}日前';
+      return '今日';
+    } catch (_) {
+      return '';
     }
   }
 
@@ -139,10 +242,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 7),
                         decoration: BoxDecoration(
-                          color: _isRankingTab ? Colors.white : Colors.transparent,
+                          gradient: _isRankingTab
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF0C7D78), Color(0xFF024750)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: _isRankingTab ? null : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: _isRankingTab
-                              ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))]
+                              ? [BoxShadow(color: const Color(0xFF005F63).withOpacity(0.16), blurRadius: 9, offset: const Offset(0, 3))]
                               : null,
                         ),
                         alignment: Alignment.center,
@@ -150,8 +260,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                           'ランキング',
                           style: AppTheme.getNotoSansJP(
                             fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _isRankingTab ? AppTheme.text : AppTheme.sub,
+                            fontWeight: _isRankingTab ? FontWeight.w700 : FontWeight.w600,
+                            color: _isRankingTab ? Colors.white : AppTheme.sub,
                           ),
                         ),
                       ),
@@ -163,10 +273,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 7),
                         decoration: BoxDecoration(
-                          color: !_isRankingTab ? Colors.white : Colors.transparent,
+                          gradient: !_isRankingTab
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF0C7D78), Color(0xFF024750)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: !_isRankingTab ? null : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: !_isRankingTab
-                              ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))]
+                              ? [BoxShadow(color: const Color(0xFF005F63).withOpacity(0.16), blurRadius: 9, offset: const Offset(0, 3))]
                               : null,
                         ),
                         alignment: Alignment.center,
@@ -174,8 +291,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                           'インサイト',
                           style: AppTheme.getNotoSansJP(
                             fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: !_isRankingTab ? AppTheme.text : AppTheme.sub,
+                            fontWeight: !_isRankingTab ? FontWeight.w700 : FontWeight.w600,
+                            color: !_isRankingTab ? Colors.white : AppTheme.sub,
                           ),
                         ),
                       ),
@@ -272,10 +389,32 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                             final prof = r['profiles'];
                             final rankNum = r['rank'] ?? (idx + 1);
 
-                            Widget rankBadge = Text('$rankNum', style: AppTheme.getManrope(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.sub));
-                            if (rankNum == 1) rankBadge = const Text('👑', style: TextStyle(fontSize: 16));
-                            if (rankNum == 2) rankBadge = const Text('🥈', style: TextStyle(fontSize: 16));
-                            if (rankNum == 3) rankBadge = const Text('🥉', style: TextStyle(fontSize: 16));
+                            Widget rankBadge;
+                            if (rankNum == 1) {
+                              rankBadge = SvgPicture.string(
+                                '''
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="#cda86a">
+                                  <path d="M2 8l4.5 3L12 4l5.5 7L22 8l-2 11H4L2 8z"/>
+                                  <circle cx="4" cy="6" r="1.6"/>
+                                  <circle cx="12" cy="2.6" r="1.6"/>
+                                  <circle cx="20" cy="6" r="1.6"/>
+                                </svg>
+                                ''',
+                                width: 22,
+                                height: 22,
+                              );
+                            } else if (rankNum == 2 || rankNum == 3) {
+                              rankBadge = Text(
+                                '$rankNum',
+                                style: AppTheme.getManrope(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: rankNum == 2 ? const Color(0xFF0D8F88) : const Color(0xFFC9783C),
+                                ).copyWith(fontStyle: FontStyle.italic),
+                              );
+                            } else {
+                              rankBadge = Text('$rankNum', style: AppTheme.getManrope(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.sub));
+                            }
 
                             return Container(
                               padding: const EdgeInsets.symmetric(vertical: 7),
@@ -370,64 +509,113 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.text),
               ),
               const SizedBox(height: 11),
-              Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 17,
-                    backgroundColor: AppTheme.uiGrey,
-                    child: Icon(Icons.person, color: AppTheme.sub, size: 16),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'たなか さとる',
-                          style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
-                        ),
-                        Text(
-                          '10分前に発掘',
-                          style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Visual Thumbnail with NEW overlay badge
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1596701062351-df1f8d368a85?q=80&w=150',
-                          width: 72,
-                          height: 50,
-                          fit: BoxFit.cover,
+              _earlySupportedPosts.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: Center(
+                        child: Text(
+                          '対象の投稿はまだありません。',
+                          style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13),
                         ),
                       ),
-                      Positioned(
-                        top: -7,
-                        right: -7,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.teal,
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(color: AppTheme.tealDark.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2)),
+                    )
+                  : Column(
+                      children: _earlySupportedPosts.map((eval) {
+                        final post = eval['posts'];
+                        final prof = post?['profiles'];
+                        final mediaList = post?['post_media'] as List?;
+                        final mediaUrl = (mediaList != null && mediaList.isNotEmpty) ? mediaList.first['url'] : '';
+                        final name = prof?['display_name'] ?? '市民サポーター';
+                        final avatarUrl = prof?['avatar_url'];
+                        final ago = _getAgoString(eval['created_at']);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 17,
+                                backgroundColor: AppTheme.uiGrey,
+                                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                child: avatarUrl == null ? const Icon(Icons.person, color: AppTheme.sub, size: 16) : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text),
+                                    ),
+                                    Text(
+                                      ago,
+                                      style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Visual Thumbnail with NEW overlay badge
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: mediaUrl.isNotEmpty
+                                        ? Image.network(
+                                            mediaUrl,
+                                            width: 72,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const SizedBox(
+                                                width: 72,
+                                                height: 50,
+                                                child: Center(
+                                                  child: CircularProgressIndicator(color: AppTheme.teal, strokeWidth: 2),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (_, __, ___) => const SizedBox(
+                                              width: 72,
+                                              height: 50,
+                                              child: Center(
+                                                child: Icon(Icons.broken_image, color: Colors.white24, size: 16),
+                                              ),
+                                            ),
+                                          )
+                                        : Container(
+                                            width: 72,
+                                            height: 50,
+                                            color: AppTheme.uiGrey,
+                                            child: const Icon(Icons.image_not_supported, color: AppTheme.sub, size: 16),
+                                          ),
+                                  ),
+                                  Positioned(
+                                    top: -7,
+                                    right: -7,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.teal,
+                                        borderRadius: BorderRadius.circular(6),
+                                        boxShadow: [
+                                          BoxShadow(color: AppTheme.tealDark.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2)),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'NEW',
+                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.04),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                          child: const Text(
-                            'NEW',
-                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.04),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                        );
+                      }).toList(),
+                    ),
               const SizedBox(height: 14),
               GestureDetector(
                 onTap: () {},
@@ -451,6 +639,121 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         const SizedBox(height: 13),
 
         // 3. Weekly Top review post
+        _topReview == null
+            ? Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF0C181C).withOpacity(0.05)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F1E22).withOpacity(0.04),
+                      blurRadius: 9,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '今週のレビューはまだありません。',
+                  style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 13),
+                ),
+              )
+            : Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF0C181C).withOpacity(0.05)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F1E22).withOpacity(0.04),
+                      blurRadius: 9,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '今週の注目レビュー',
+                          style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.text),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFDEEE9),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            '🔥 反響大',
+                            style: TextStyle(color: Color(0xFFC9783C), fontSize: 10, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 11),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppTheme.uiGrey,
+                          backgroundImage: _topReview['profiles']?['avatar_url'] != null
+                              ? NetworkImage(_topReview['profiles']['avatar_url'])
+                              : null,
+                          child: _topReview['profiles']?['avatar_url'] == null
+                              ? const Icon(Icons.person, color: AppTheme.sub, size: 18)
+                              : null,
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    _topReview['profiles']?['display_name'] ?? '市民サポーター',
+                                    style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.text),
+                                  ),
+                                  if (_topReview['profiles']?['area_name'] != null)
+                                    Text(
+                                      ' ・${_topReview['profiles']['area_name']}',
+                                      style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub, fontWeight: FontWeight.w500),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '「${_topReview['body'] ?? ''}」',
+                                style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.sub, height: 1.6),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.favorite, color: AppTheme.teal, size: 12),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '${_topReview['posts']?['post_metrics']?['support_count'] ?? 0}人が同意',
+                                    style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.teal, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+        const SizedBox(height: 13),
         Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
@@ -466,73 +769,92 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             ],
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                '今週のレビュー数',
+                style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.sub),
+              ),
+              const SizedBox(height: 6),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '今週の注目レビュー',
-                    style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.text),
+                    '$_evalsCount',
+                    style: AppTheme.getManrope(fontSize: 28, fontWeight: FontWeight.w900, color: AppTheme.text, height: 1, letterSpacing: -0.8),
                   ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '件',
+                    style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.sub),
+                  ),
+                  const SizedBox(width: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFDEEE9),
+                      color: _percentChange >= 0
+                          ? const Color(0xFFE3EFED)
+                          : const Color(0xFFFCE8E6),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text(
-                      '🔥 反響大',
-                      style: TextStyle(color: Color(0xFFC9783C), fontSize: 10, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 11),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppTheme.uiGrey,
-                    child: Icon(Icons.person, color: AppTheme.sub, size: 18),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'やまざき なおこ',
-                              style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.text),
-                            ),
-                            Text(
-                              ' ・大宮区',
-                              style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub, fontWeight: FontWeight.w500),
-                            ),
-                          ],
+                        Icon(
+                          _percentChange >= 0
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          size: 11,
+                          color: _percentChange >= 0
+                              ? AppTheme.teal
+                              : Colors.redAccent,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 3),
                         Text(
-                          '「大宮駅東口の広場、車線が減るだけでこんなに歩きやすくなるんですね。ぜひ実現してほしい！」',
-                          style: AppTheme.getNotoSansJP(fontSize: 12, color: AppTheme.sub, height: 1.6),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.favorite, color: AppTheme.teal, size: 12),
-                            const SizedBox(width: 5),
-                            Text(
-                              '34人が同意',
-                              style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.teal, fontWeight: FontWeight.w700),
-                            ),
-                          ],
+                          _percentChange >= 0
+                              ? '+${_percentChange.toStringAsFixed(0)}%'
+                              : '${_percentChange.toStringAsFixed(0)}%',
+                          style: AppTheme.getManrope(
+                            color: _percentChange >= 0
+                                ? AppTheme.teal
+                                : Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+
+              // CustomPaint Vertical Bar Chart
+              SizedBox(
+                height: 70,
+                width: double.infinity,
+                child: CustomPaint(
+                  painter: WeeklyReviewChartPainter(
+                    values: _chartValues,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Mon-Sun labels row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: const ['月', '火', '水', '木', '金', '土', '日']
+                    .map((day) => Expanded(
+                          child: Center(
+                            child: Text(
+                              day,
+                              style: TextStyle(color: AppTheme.sub, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ))
+                    .toList(),
               ),
             ],
           ),
@@ -586,96 +908,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         ),
         const SizedBox(height: 13),
 
-        // 2. Weekly review vertical bar chart
-        Container(
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF0C181C).withOpacity(0.05)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F1E22).withOpacity(0.04),
-                blurRadius: 9,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '今週のレビュー数',
-                style: AppTheme.getNotoSansJP(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.sub),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '$_evalsCount',
-                    style: AppTheme.getManrope(fontSize: 28, fontWeight: FontWeight.w900, color: AppTheme.text, height: 1, letterSpacing: -0.8),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '件',
-                    style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.sub),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE3EFED),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.arrow_upward, size: 11, color: AppTheme.teal),
-                        const SizedBox(width: 3),
-                        Text(
-                          '+12%',
-                          style: AppTheme.getManrope(color: AppTheme.teal, fontSize: 12, fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // CustomPaint Vertical Bar Chart
-              SizedBox(
-                height: 70,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: WeeklyReviewChartPainter(
-                    values: const [0.2, 0.55, 0.4, 0.85, 0.35, 0.25, 0.95], // Normalized mock daily evaluations heights
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Mon-Sun labels row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: const ['月', '火', '水', '木', '金', '土', '日']
-                    .map((day) => Expanded(
-                          child: Center(
-                            child: Text(
-                              day,
-                              style: TextStyle(color: AppTheme.sub, fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 13),
-
         // 3. Theme stats
         Container(
           padding: const EdgeInsets.all(13),
@@ -699,13 +931,29 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 style: AppTheme.getNotoSansJP(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.text),
               ),
               const SizedBox(height: 13),
-              _buildThemeBarRow('歩道拡幅', 6, 0.8),
-              const SizedBox(height: 14),
-              _buildThemeBarRow('緑化', 4, 0.5),
-              const SizedBox(height: 14),
-              _buildThemeBarRow('ベンチ', 3, 0.4),
-              const SizedBox(height: 14),
-              _buildThemeBarRow('照明', 2, 0.25),
+              _topSupportedTags.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: Center(
+                        child: Text(
+                          '応援したテーマはまだありません。',
+                          style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 12),
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: List.generate(_topSupportedTags.length, (idx) {
+                        final tag = _topSupportedTags[idx];
+                        final String title = tag['title'];
+                        final int count = tag['count'];
+                        final int maxCount = _topSupportedTags.first['count'];
+                        final double fraction = maxCount > 0 ? count / maxCount : 0.0;
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: idx == _topSupportedTags.length - 1 ? 0 : 14),
+                          child: _buildThemeBarRow(title, count, fraction),
+                        );
+                      }),
+                    ),
             ],
           ),
         ),
