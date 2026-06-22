@@ -1,8 +1,8 @@
 // lib/screens/create_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
+import '../services/supabase_service.dart';
 
 class CreateScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -13,7 +13,6 @@ class CreateScreen extends StatefulWidget {
 }
 
 class _CreateScreenState extends State<CreateScreen> {
-  final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
@@ -83,7 +82,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   Future<void> _fetchProjects() async {
     try {
-      final data = await supabase.from('projects').select('*').eq('status', 'active');
+      final data = await SupabaseService.getActiveProjects();
       setState(() {
         _projects = data;
       });
@@ -94,8 +93,8 @@ class _CreateScreenState extends State<CreateScreen> {
 
   Future<void> _fetchTags() async {
     try {
-      final data = await supabase.from('tags').select('*').order('title');
-      if (mounted && data != null && data.isNotEmpty) {
+      final data = await SupabaseService.getTags();
+      if (mounted && data.isNotEmpty) {
         setState(() {
           _dbTags = data;
           _selectedTags.clear();
@@ -120,7 +119,7 @@ class _CreateScreenState extends State<CreateScreen> {
       _stepLabel = 'AI生成ジョブを開始しています...';
     });
 
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
     if (uid == null) return;
 
     try {
@@ -139,14 +138,13 @@ class _CreateScreenState extends State<CreateScreen> {
       final prompt = 'A beautiful futuristic urban space in Japan, incorporating: $tagListString. ${_titleController.text.trim()}. High resolution, realistic.';
 
       // 1. Insert job to ai_generation_jobs
-      final job = await supabase.from('ai_generation_jobs').insert({
-        'user_id': uid,
-        'project_id': _selectedProjectId,
-        'input_image_url': _selectedPresetUrl,
-        'selected_tag_ids': selectedTagIds,
-        'status': 'queued',
-        'prompt': prompt,
-      }).select().single();
+      final job = await SupabaseService.insertAIGenerationJob(
+        userId: uid,
+        projectId: _selectedProjectId,
+        inputImageUrl: _selectedPresetUrl!,
+        selectedTagIds: selectedTagIds,
+        prompt: prompt,
+      );
 
       final jobId = job['id'];
 
@@ -162,11 +160,7 @@ class _CreateScreenState extends State<CreateScreen> {
         }
 
         try {
-          final currentJob = await supabase
-              .from('ai_generation_jobs')
-              .select('*')
-              .eq('id', jobId)
-              .single();
+          final currentJob = await SupabaseService.getAIGenerationJob(jobId);
 
           final status = currentJob['status'] as String;
 
@@ -218,24 +212,23 @@ class _CreateScreenState extends State<CreateScreen> {
       return;
     }
 
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
     if (uid == null) return;
 
     try {
       final String addressText = _addressController.text.trim();
 
       // 1. Insert post
-      final post = await supabase.from('posts').insert({
-        'user_id': uid,
-        'project_id': _selectedProjectId,
-        'title': _titleController.text.trim(),
-        'body': _bodyController.text.trim(),
-        'status': 'published',
-        'address_text': addressText,
-      }).select().single();
+      final post = await SupabaseService.insertPost(
+        userId: uid,
+        projectId: _selectedProjectId,
+        title: _titleController.text.trim(),
+        body: _bodyController.text.trim(),
+        addressText: addressText,
+      );
 
       // 2. Insert media items
-      await supabase.from('post_media').insert([
+      await SupabaseService.insertPostMedia([
         {
           'post_id': post['id'],
           'media_type': 'before',
@@ -263,7 +256,7 @@ class _CreateScreenState extends State<CreateScreen> {
       }
 
       if (tagIdsToInsert.isNotEmpty) {
-        await supabase.from('post_tags').insert(
+        await SupabaseService.insertPostTags(
           tagIdsToInsert.map((tid) => {
             'post_id': post['id'],
             'tag_id': tid,

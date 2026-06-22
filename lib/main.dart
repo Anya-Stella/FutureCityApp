@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -59,7 +60,7 @@ class _AuthStateGateState extends State<AuthStateGate> {
   void initState() {
     super.initState();
     _checkAuth();
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    SupabaseService.onAuthStateChange.listen((data) {
       if (mounted) {
         setState(() {
           _user = data.session?.user;
@@ -70,7 +71,7 @@ class _AuthStateGateState extends State<AuthStateGate> {
   }
 
   Future<void> _checkAuth() async {
-    final session = Supabase.instance.client.auth.currentSession;
+    final session = SupabaseService.currentSession;
     setState(() {
       _user = session?.user;
       _loading = false;

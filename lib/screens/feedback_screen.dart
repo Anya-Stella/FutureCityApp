@@ -1,8 +1,9 @@
 // lib/screens/feedback_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/app_theme.dart';
+import '../widgets/weekly_review_chart_painter.dart';
+import '../services/supabase_service.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -12,7 +13,6 @@ class FeedbackScreen extends StatefulWidget {
 }
 
 class _FeedbackScreenState extends State<FeedbackScreen> {
-  final supabase = Supabase.instance.client;
   bool _isRankingTab = true; // Tab toggle: Ranking vs Insight
 
   // Stats Data
@@ -36,7 +36,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   }
 
   Future<void> _fetchStats() async {
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
     if (uid == null) return;
 
     try {
@@ -45,13 +45,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       final weekAgo = nowTime.subtract(const Duration(days: 7));
       final twoWeeksAgo = nowTime.subtract(const Duration(days: 14));
 
-      final evalsResponse = await supabase
-          .from('evaluations')
-          .select('id, action, created_at')
-          .eq('user_id', uid)
-          .gte('created_at', twoWeeksAgo.toUtc().toIso8601String());
+      final evalsList = await SupabaseService.getEvaluationsSince(uid, twoWeeksAgo);
 
-      final evalsList = evalsResponse as List;
       int thisWeekCount = 0;
       int lastWeekCount = 0;
 
@@ -88,42 +83,26 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       }
 
       // 2. Early supported posts
-      final earlyEvals = await supabase
-          .from('evaluations')
-          .select('*, posts(*, profiles:profiles!posts_user_id_fkey(display_name, avatar_url), post_media(*), post_metrics(*))')
-          .eq('user_id', uid)
-          .eq('action', 'support')
-          .lte('support_count_at_evaluation', 5)
-          .limit(3);
+      final earlyEvals = await SupabaseService.getEarlySupportedPosts(uid);
 
       // 3. Top review
-      final comments = await supabase
-          .from('comments')
-          .select('*, profiles(display_name, area_name), posts(title, post_metrics(support_count))')
-          .order('created_at', ascending: false)
-          .limit(1);
+      final comments = await SupabaseService.getTopReviews();
 
       // 4. Frequently supported themes/tags
-      final tagStatsResponse = await supabase
-          .from('evaluations')
-          .select('posts(post_tags(tags(title)))')
-          .eq('user_id', uid)
-          .eq('action', 'support');
+      final tagStatsResponse = await SupabaseService.getSupportedTagsForUser(uid);
 
       final Map<String, int> tagCounts = {};
-      if (tagStatsResponse != null) {
-        for (final item in tagStatsResponse as List) {
-          final post = item['posts'];
-          if (post != null) {
-            final postTags = post['post_tags'] as List?;
-            if (postTags != null) {
-              for (final pt in postTags) {
-                final tag = pt['tags'];
-                if (tag != null) {
-                  final title = tag['title'] as String?;
-                  if (title != null) {
-                    tagCounts[title] = (tagCounts[title] ?? 0) + 1;
-                  }
+      for (final item in tagStatsResponse) {
+        final post = item['posts'];
+        if (post != null) {
+          final postTags = post['post_tags'] as List?;
+          if (postTags != null) {
+            for (final pt in postTags) {
+              final tag = pt['tags'];
+              if (tag != null) {
+                final title = tag['title'] as String?;
+                if (title != null) {
+                  tagCounts[title] = (tagCounts[title] ?? 0) + 1;
                 }
               }
             }
@@ -145,7 +124,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           _chartValues = chartValues;
           _earlySupportedPosts = earlyEvals;
           _topSupportedTags = topSupportedTags;
-          if (comments != null && comments.isNotEmpty) {
+          if (comments.isNotEmpty) {
             _topReview = comments.first;
           } else {
             _topReview = null;
@@ -161,12 +140,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     if (!mounted) return;
     setState(() => _isLoadingRankings = true);
     try {
-      final data = await supabase
-          .from('rankings')
-          .select('*, profiles(display_name, avatar_url)')
-          .eq('ranking_type', _selectedRankType)
-          .order('rank', ascending: true)
-          .limit(3); // Match top 3 from HTML prototype
+      final data = await SupabaseService.getRankings(_selectedRankType);
 
       if (mounted) {
         setState(() {
@@ -1115,50 +1089,4 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   }
 }
 
-// ============================ CUSTOM PAINTER CHART ============================
-class WeeklyReviewChartPainter extends CustomPainter {
-  final List<double> values; // normalized values between 0.0 and 1.0
-  WeeklyReviewChartPainter({required this.values});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintBar = Paint()
-      ..color = AppTheme.teal
-      ..style = PaintingStyle.fill;
-
-    final paintBg = Paint()
-      ..color = AppTheme.uiGrey
-      ..style = PaintingStyle.fill;
-
-    final double width = size.width;
-    final double height = size.height;
-    final int count = values.length;
-    final double spacing = 20.0;
-    final double barWidth = (width - (spacing * (count - 1))) / count;
-
-    for (int i = 0; i < count; i++) {
-      final double x = i * (barWidth + spacing);
-      final double val = values[i];
-      final double barHeight = height * val;
-
-      // Draw background bar track
-      final bgRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, 0, barWidth, height),
-        const Radius.circular(999),
-      );
-      canvas.drawRRect(bgRect, paintBg);
-
-      // Draw active fill bar
-      if (barHeight > 0) {
-        final fillRect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, height - barHeight, barWidth, barHeight),
-          const Radius.circular(999),
-        );
-        canvas.drawRRect(fillRect, paintBar);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}

@@ -1,7 +1,7 @@
 // lib/screens/mypage_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
+import '../services/supabase_service.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -11,8 +11,6 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
-  final supabase = Supabase.instance.client;
-
   // Profile data
   dynamic _profile;
   List<dynamic> _myPosts = [];
@@ -32,75 +30,34 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _loadAllProfileData() async {
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
     if (uid == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Fetch user profile join city type
-      final prof = await supabase
-          .from('profiles')
-          .select('*, city_types(*)')
-          .eq('id', uid)
-          .maybeSingle();
-
-      // 2. Fetch my submitted ideas
-      final posts = await supabase
-          .from('posts')
-          .select('*, post_media(*), post_metrics(*)')
-          .eq('user_id', uid)
-          .order('created_at', ascending: false);
-
-      // 3. Fetch saved posts list join posts
-      final saves = await supabase
-          .from('saved_posts')
-          .select('*, posts(*, post_media(*), post_metrics(*))')
-          .eq('user_id', uid);
-
-      // 4. Fetch earned badges
-      final badges = await supabase
-          .from('user_badges')
-          .select('*, badges(*)')
-          .eq('user_id', uid);
-
-      // 5. Fetch point ledger
-      final ledgers = await supabase
-          .from('points_ledger')
-          .select('*')
-          .eq('user_id', uid)
-          .order('created_at', ascending: false);
-
-      // 6. Fetch evaluations count
-      final evalsCountRes = await supabase
-          .from('evaluations')
-          .select('id')
-          .eq('user_id', uid);
-
-      // 7. Fetch comments count
-      final commentsCountRes = await supabase
-          .from('comments')
-          .select('id')
-          .eq('user_id', uid);
-
-      // 8. Fetch supports count
-      final supportsCountRes = await supabase
-          .from('evaluations')
-          .select('id')
-          .eq('user_id', uid)
-          .eq('action', 'support');
+      final results = await Future.wait([
+        SupabaseService.getProfile(uid),
+        SupabaseService.getMyPosts(uid),
+        SupabaseService.getSavedPosts(uid),
+        SupabaseService.getUserBadges(uid),
+        SupabaseService.getPointsLedger(uid),
+        SupabaseService.getEvaluations(uid),
+        SupabaseService.getCommentsCount(uid),
+        SupabaseService.getSupportEvaluations(uid),
+      ]);
 
       if (mounted) {
         setState(() {
-          _profile = prof;
-          _myPosts = posts;
-          _savedPostsCount = saves.length;
-          _earnedBadgesCount = badges.length;
-          _earnedBadges = badges;
-          _activityLedgers = ledgers;
-          _evalsCount = (evalsCountRes as List).length;
-          _commentsCount = (commentsCountRes as List).length;
-          _supportsCount = (supportsCountRes as List).length;
+          _profile = results[0];
+          _myPosts = results[1] as List;
+          _savedPostsCount = (results[2] as List).length;
+          _earnedBadges = results[3] as List;
+          _earnedBadgesCount = _earnedBadges.length;
+          _activityLedgers = results[4] as List;
+          _evalsCount = (results[5] as List).length;
+          _commentsCount = (results[6] as List).length;
+          _supportsCount = (results[7] as List).length;
           _isLoading = false;
         });
       }
@@ -131,15 +88,16 @@ class _MyPageScreenState extends State<MyPageScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
           TextButton(
             onPressed: () async {
-              final uid = supabase.auth.currentUser?.id;
+              final uid = SupabaseService.currentUser?.id;
               if (uid == null) return;
               final navigator = Navigator.of(context);
               try {
-                await supabase.from('profiles').update({
-                  'display_name': nameController.text.trim(),
-                  'area_name': areaController.text.trim(),
-                  'resident_type': residentController.text.trim(),
-                }).eq('id', uid);
+                await SupabaseService.updateProfile(
+                  userId: uid,
+                  displayName: nameController.text.trim(),
+                  areaName: areaController.text.trim(),
+                  residentType: residentController.text.trim(),
+                );
                 if (!mounted) return;
                 navigator.pop();
                 _loadAllProfileData();
@@ -155,7 +113,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _logout() async {
-    await supabase.auth.signOut();
+    await SupabaseService.signOut();
   }
 
   String _getActivityEmoji(String? reasonCode) {

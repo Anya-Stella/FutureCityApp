@@ -60,13 +60,11 @@ class AppTheme {
       useMaterial3: true,
       scaffoldBackgroundColor: bg,
       colorScheme: const ColorScheme.light(
-        background: bg,
         surface: card,
         primary: teal,
         secondary: accent,
         onPrimary: Colors.white,
         onSecondary: text,
-        onBackground: text,
         onSurface: text,
         outline: border,
       ),

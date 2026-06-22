@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../widgets/desktop_device_wrapper.dart';
+import '../services/supabase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -42,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       if (_isSignUp) {
-        await Supabase.instance.client.auth.signUp(
+        await SupabaseService.signUp(
           email: email,
           password: password,
         );
@@ -55,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        await Supabase.instance.client.auth.signInWithPassword(
+        await SupabaseService.signInWithPassword(
           email: email,
           password: password,
         );

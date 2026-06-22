@@ -1,8 +1,8 @@
 // lib/screens/eval_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
-import 'home_screen.dart'; // To reuse the beautiful PostDetailSheet
+import 'post_detail_screen.dart';
+import '../services/supabase_service.dart';
 
 class EvalScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -13,7 +13,6 @@ class EvalScreen extends StatefulWidget {
 }
 
 class _EvalScreenState extends State<EvalScreen> {
-  final supabase = Supabase.instance.client;
   List<dynamic> _unevaluatedPosts = [];
   bool _isLoading = true;
   final Stopwatch _dwellStopwatch = Stopwatch();
@@ -31,22 +30,11 @@ class _EvalScreenState extends State<EvalScreen> {
       _isLoading = true;
       _sessionEvalCount = 0;
     });
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
     if (uid == null) return;
 
     try {
-      // Fetch posts and filter out already evaluated ones in Dart
-      final response = await supabase
-          .from('posts')
-          .select('*, post_media(*), post_metrics(*), post_tags(tags(*)), profiles:profiles!posts_user_id_fkey(display_name, avatar_url, area_name), evaluations(user_id)')
-          .eq('status', 'published');
-
-      final list = response as List;
-      final filtered = list.where((post) {
-        final evals = post['evaluations'] as List?;
-        if (evals == null || evals.isEmpty) return true;
-        return !evals.any((e) => e['user_id'] == uid);
-      }).toList();
+      final filtered = await SupabaseService.getUnevaluatedPosts(uid);
 
       if (mounted) {
         setState(() {
@@ -73,7 +61,7 @@ class _EvalScreenState extends State<EvalScreen> {
     _dwellStopwatch.stop();
     final dwellMs = _dwellStopwatch.elapsedMilliseconds;
     final activePost = _unevaluatedPosts.first;
-    final uid = supabase.auth.currentUser?.id;
+    final uid = SupabaseService.currentUser?.id;
 
     if (uid == null) return;
 
@@ -83,17 +71,16 @@ class _EvalScreenState extends State<EvalScreen> {
 
     try {
       // Write evaluation
-      await supabase.from('evaluations').insert({
-        'user_id': uid,
-        'post_id': activePost['id'],
-        'project_id': activePost['project_id'],
-        'action': action,
-        'dwell_ms': dwellMs,
-        'opened_detail': _openedDetail,
-        'source': 'swipe',
-        'support_count_at_evaluation': currentSupportCount,
-        'support_rate_at_evaluation': currentSupportRate,
-      });
+      await SupabaseService.insertEvaluation(
+        userId: uid,
+        postId: activePost['id'],
+        projectId: activePost['project_id'],
+        action: action,
+        dwellMs: dwellMs,
+        openedDetail: _openedDetail,
+        supportCountAtEvaluation: currentSupportCount,
+        supportRateAtEvaluation: currentSupportRate,
+      );
 
       // Slide locally to next item
       if (mounted) {
@@ -114,18 +101,14 @@ class _EvalScreenState extends State<EvalScreen> {
     }
   }
 
-  void _openDetailSheet() {
+  void _openDetailScreen() {
     if (_unevaluatedPosts.isEmpty) return;
     _openedDetail = true;
     final post = _unevaluatedPosts.first;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.92,
-        child: PostDetailSheet(post: post),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PostDetailScreen(post: post),
       ),
     );
   }
@@ -324,7 +307,7 @@ class _EvalScreenState extends State<EvalScreen> {
                                 // Foreground card (Active)
                                 Positioned.fill(
                                   child: GestureDetector(
-                                    onTap: _openDetailSheet,
+                                    onTap: _openDetailScreen,
                                     child: _buildSwipeCard(_unevaluatedPosts.first),
                                   ),
                                 ),
