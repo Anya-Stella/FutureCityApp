@@ -664,9 +664,7 @@ class _CreateScreenState extends State<CreateScreen> {
                                   height: 50,
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [AppTheme.teal, AppTheme.tealDark],
-                                    ),
+                                    gradient: AppTheme.brandGradient,
                                     borderRadius: BorderRadius.circular(14),
                                     boxShadow: [
                                       BoxShadow(
@@ -767,11 +765,11 @@ class _CreateScreenState extends State<CreateScreen> {
                         height: 52,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: AppTheme.teal,
+                          gradient: AppTheme.brandGradient,
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.teal.withOpacity(0.32),
+                              color: const Color(0xFF006C74).withOpacity(0.32),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),

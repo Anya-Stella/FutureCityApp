@@ -86,36 +86,44 @@ class CustomBottomNavigation extends StatelessWidget {
     required String Function(String fill, String stroke) svgString,
   }) {
     final bool isActive = currentIndex == index;
-    final String fill = isActive ? '#006C74' : 'none';
-    final String stroke = isActive ? '#006C74' : '#6E777C';
-    final Color textColor = isActive ? AppTheme.teal : AppTheme.sub;
-    final FontWeight fontWeight = isActive ? FontWeight.w700 : FontWeight.w600;
+
+    final itemChild = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        SvgPicture.string(
+          svgString(
+            isActive ? '#ffffff' : 'none',
+            isActive ? '#ffffff' : '#6E777C',
+          ),
+          width: 24,
+          height: 24,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTheme.getNotoSansJP(
+            fontSize: 10,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+            color: isActive ? Colors.white : AppTheme.sub,
+          ),
+        ),
+      ],
+    );
 
     return GestureDetector(
       onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 56,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            SvgPicture.string(
-              svgString(fill, stroke),
-              width: 24,
-              height: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: AppTheme.getNotoSansJP(
-                fontSize: 10,
-                fontWeight: fontWeight,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
+        child: isActive
+            ? ShaderMask(
+                shaderCallback: (bounds) =>
+                    AppTheme.brandGradient.createShader(bounds),
+                blendMode: BlendMode.srcIn,
+                child: itemChild,
+              )
+            : itemChild,
       ),
     );
   }

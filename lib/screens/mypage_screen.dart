@@ -272,7 +272,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                               width: 24,
                               height: 24,
                               decoration: const BoxDecoration(
-                                color: AppTheme.teal,
+                                gradient: AppTheme.brandGradient,
                                 shape: BoxShape.circle,
                               ),
                               alignment: Alignment.center,

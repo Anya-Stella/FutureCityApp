@@ -804,7 +804,7 @@ class _EvalScreenState extends State<EvalScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppTheme.teal,
+                    gradient: AppTheme.brandGradient,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,

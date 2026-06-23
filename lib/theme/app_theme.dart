@@ -21,6 +21,13 @@ class AppTheme {
   static const Color gold = Color(0xFFCDA86A);
   static const Color heart = Color(0xFFF0728A);
 
+  // Brand gradient (応援するボタンと同じ艶感)
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [Color(0xFF006C74), Color(0xFF0C2030)],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+
   // Font Styles
   static TextStyle getManrope({
     double? fontSize,
