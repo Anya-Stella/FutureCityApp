@@ -485,7 +485,7 @@ class _EvalScreenState extends State<EvalScreen> {
         : '提案';
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + bottomPad),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + bottomPad),
       decoration: BoxDecoration(
         color: const Color(0xFF02141C),
         border: Border(
@@ -502,7 +502,7 @@ class _EvalScreenState extends State<EvalScreen> {
           // 艶ライン（上部ハイライト）
           Container(
             height: 1,
-            margin: const EdgeInsets.only(bottom: 13),
+            margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -514,53 +514,75 @@ class _EvalScreenState extends State<EvalScreen> {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          Row(
-            children: [
-              Text(
-                '${firstTag}案への支持  ',
-                style: AppTheme.getNotoSansJP(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white),
-              ),
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppTheme.brandGradient.createShader(bounds),
-                blendMode: BlendMode.srcIn,
-                child: Text(
-                  '${(rate * 100).toStringAsFixed(0)}%',
-                  style: AppTheme.getManrope(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            height: 6,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: rate.clamp(0.0, 1.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: AppTheme.brandGradient,
-                  borderRadius: BorderRadius.circular(999),
-                ),
+          // タイトル＋% 1行・中央
+          Center(
+            child: RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${firstTag}案への支持  ',
+                    style: AppTheme.getNotoSansJP(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white),
+                  ),
+                  TextSpan(
+                    text: '${(rate * 100).round()}%',
+                    style: AppTheme.getManrope(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            '現在の集計データに基づく',
-            style: AppTheme.getNotoSansJP(
-                fontSize: 11, color: Colors.white.withOpacity(0.45)),
+          // 進捗バー（teal グロー）
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final double fillW =
+                  (constraints.maxWidth * rate.clamp(0.0, 1.0))
+                      .clamp(3.0, constraints.maxWidth);
+              return Stack(
+                children: [
+                  Container(
+                    height: 5,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Container(
+                    height: 5,
+                    width: fillW,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF29D8D3),
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF29D8D3).withOpacity(0.7),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 7),
+          // キャプション（中央）
+          Center(
+            child: Text(
+              '現在の集計データに基づく',
+              style: AppTheme.getNotoSansJP(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.45)),
+            ),
           ),
         ],
       ),
