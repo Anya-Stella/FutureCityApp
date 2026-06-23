@@ -38,9 +38,12 @@ class MyApp extends StatelessWidget {
       title: 'Future City',
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
-      home: const DesktopDeviceWrapper(
-        child: AuthStateGate(),
-      ),
+      builder: (context, child) {
+        return DesktopDeviceWrapper(
+          child: child ?? const SizedBox(),
+        );
+      },
+      home: const AuthStateGate(),
     );
   }
 }

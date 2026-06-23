@@ -24,6 +24,10 @@ class _CreateScreenState extends State<CreateScreen> {
   // Preset Mock images to bypass native photo uploads on desktop/restricted platforms
   final List<Map<String, String>> _presets = [
     {
+      'name': '大宮駅東口（現状）',
+      'url': 'assets/street-before.png',
+    },
+    {
       'name': '寂れた広場',
       'url': 'https://picsum.photos/seed/square/600/600',
     },
@@ -39,9 +43,9 @@ class _CreateScreenState extends State<CreateScreen> {
   String? _selectedPresetUrl;
 
   // Tags list
-  final List<String> _fallbackTags = ['歩道拡幅', '緑化', 'ベンチ', '照明', 'バリアフリー', 'アート'];
+  final List<String> _fallbackTags = ['緑化', 'ベンチ', '歩道拡幅', '日陰', '自転車レーン', 'バリアフリー'];
   List<dynamic> _dbTags = [];
-  final Set<String> _selectedTags = {'歩道拡幅'};
+  final Set<String> _selectedTags = {'緑化', 'ベンチ', '歩道拡幅', '日陰', '自転車レーン'};
 
   static const Map<String, String> _fallbackTagIds = {
     '緑化': 'a0000000-0000-0000-0000-000000000001',
@@ -67,7 +71,7 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedPresetUrl = _presets[1]['url'];
+    _selectedPresetUrl = _presets[0]['url'];
     _fetchProjects();
     _fetchTags();
   }
@@ -97,8 +101,6 @@ class _CreateScreenState extends State<CreateScreen> {
       if (mounted && data.isNotEmpty) {
         setState(() {
           _dbTags = data;
-          _selectedTags.clear();
-          _selectedTags.add(_dbTags.first['title'] as String);
         });
       }
     } catch (e) {
@@ -371,23 +373,16 @@ class _CreateScreenState extends State<CreateScreen> {
                   Row(
                     children: [
                       Container(
-                        width: 16,
-                        height: 16,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.teal, width: 2),
+                          color: AppTheme.teal.withOpacity(0.12),
                         ),
                         alignment: Alignment.center,
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.teal,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                        child: const Text('📷', style: TextStyle(fontSize: 12)),
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 8),
                       Text(
                         '写真をアップロード',
                         style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
@@ -414,19 +409,7 @@ class _CreateScreenState extends State<CreateScreen> {
                       children: [
                         Positioned.fill(
                           child: _selectedPresetUrl != null
-                              ? Image.network(
-                                  _selectedPresetUrl!,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(color: AppTheme.teal),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Icon(Icons.broken_image, color: Colors.white24, size: 30),
-                                  ),
-                                )
+                              ? AppTheme.buildImage(_selectedPresetUrl!)
                               : Container(color: AppTheme.border),
                         ),
                         Positioned.fill(
@@ -510,23 +493,16 @@ class _CreateScreenState extends State<CreateScreen> {
                   Row(
                     children: [
                       Container(
-                        width: 16,
-                        height: 16,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.teal, width: 2),
+                          color: AppTheme.teal.withOpacity(0.12),
                         ),
                         alignment: Alignment.center,
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.teal,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                        child: const Text('💬', style: TextStyle(fontSize: 12)),
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 8),
                       Text(
                         'テーマを選択',
                         style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
@@ -580,27 +556,19 @@ class _CreateScreenState extends State<CreateScreen> {
                   Row(
                     children: [
                       Container(
-                        width: 16,
-                        height: 16,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.teal, width: 2),
+                          color: AppTheme.teal.withOpacity(0.12),
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.add, size: 10, color: AppTheme.teal),
+                        child: const Text('🌐', style: TextStyle(fontSize: 12)),
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 8),
                       Text(
                         'AIで未来景観を生成',
                         style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 15,
-                        height: 15,
-                        decoration: const BoxDecoration(color: AppTheme.uiGrey, shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: const Text('i', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.sub)),
                       ),
                     ],
                   ),
@@ -624,21 +592,10 @@ class _CreateScreenState extends State<CreateScreen> {
                         // Show mock background
                          Positioned.fill(
                           child: _generatedImageUrl != null
-                              ? Image.network(
-                                  _generatedImageUrl!,
+                              ? AppTheme.buildImage(_generatedImageUrl!)
+                              : Image.asset(
+                                  'assets/plaza-after.png',
                                   fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(color: AppTheme.teal),
-                                    );
-                                  },
-                                  errorBuilder: (_, __, ___) => const Center(
-                                    child: Icon(Icons.broken_image, color: AppTheme.sub, size: 30),
-                                  ),
-                                )
-                              : Container(
-                                  color: const Color(0xFF07121A),
                                 ),
                         ),
 
@@ -723,15 +680,13 @@ class _CreateScreenState extends State<CreateScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        'AIで生成する',
+                                        'AIで生成する ★',
                                         style: AppTheme.getNotoSansJP(
                                           color: Colors.white,
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
                                     ],
                                   ),
                                 ),

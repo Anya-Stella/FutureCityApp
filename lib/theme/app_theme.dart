@@ -99,4 +99,36 @@ class AppTheme {
       ),
     );
   }
+
+  static Widget buildImage(
+    String url, {
+    BoxFit fit = BoxFit.cover,
+    double? width,
+    double? height,
+  }) {
+    if (url.startsWith('assets/')) {
+      return Image.asset(
+        url,
+        fit: fit,
+        width: width,
+        height: height,
+      );
+    } else {
+      return Image.network(
+        url,
+        fit: fit,
+        width: width,
+        height: height,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(
+            child: CircularProgressIndicator(color: teal),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => const Center(
+          child: Icon(Icons.broken_image, color: Colors.white24, size: 24),
+        ),
+      );
+    }
+  }
 }

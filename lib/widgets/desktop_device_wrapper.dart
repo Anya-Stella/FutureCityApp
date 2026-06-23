@@ -168,6 +168,7 @@ class DesktopDeviceWrapper extends StatelessWidget {
                               children: [
                                 MediaQuery(
                                   data: MediaQuery.of(context).copyWith(
+                                    size: const Size(376, 830),
                                     padding: const EdgeInsets.only(top: 44.0, bottom: 34.0),
                                     viewPadding: const EdgeInsets.only(top: 44.0, bottom: 34.0),
                                   ),
