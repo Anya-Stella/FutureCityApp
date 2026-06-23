@@ -717,7 +717,7 @@ class _CreateScreenState extends State<CreateScreen> {
                           Positioned.fill(
                             child: _generatedImageUrl != null
                                 ? AppTheme.buildImage(_generatedImageUrl!)
-                                : Image.asset('assets/plaza-after.png',
+                                : Image.asset('assets/generate-placeholder.png',
                                     fit: BoxFit.cover),
                           ),
                           // 生成中スピナー
