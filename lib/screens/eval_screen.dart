@@ -149,7 +149,7 @@ class _EvalScreenState extends State<EvalScreen> {
                     : _unevaluatedPosts.isEmpty
                         ? _buildEmptyFeedPlaceholder()
                         : Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                            padding: const EdgeInsets.fromLTRB(18, 26, 18, 0),
                             child: Column(
                               children: [
                                 // 1. ヘッダー
