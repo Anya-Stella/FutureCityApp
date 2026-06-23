@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: AppTheme.getNotoSansJP(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.teal,
+                        color: const Color(0xFF333333),
                       ),
                     ),
                   ],
@@ -247,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '人気の投稿',
+                      '人気のアイデア',
                       style: AppTheme.getNotoSansJP(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -260,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: AppTheme.getNotoSansJP(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.teal,
+                        color: const Color(0xFF333333),
                       ),
                     ),
                   ],
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '新着の投稿',
+                      '新着のアイデア',
                       style: AppTheme.getNotoSansJP(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -338,7 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: AppTheme.getNotoSansJP(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.teal,
+                        color: const Color(0xFF333333),
                       ),
                     ),
                   ],
