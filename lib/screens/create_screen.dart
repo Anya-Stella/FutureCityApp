@@ -612,10 +612,26 @@ class _CreateScreenState extends State<CreateScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 9),
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppTheme.tealDark
-                                  : AppTheme.uiGrey,
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFF2BB8AF),
+                                        Color(0xFF0D7872),
+                                        Color(0xFF054450),
+                                        Color(0xFF011820),
+                                      ],
+                                      stops: [0.0, 0.30, 0.65, 1.0],
+                                    )
+                                  : null,
+                              color: isSelected ? null : AppTheme.uiGrey,
                               borderRadius: BorderRadius.circular(999),
+                              border: isSelected
+                                  ? Border.all(
+                                      color: Colors.white.withOpacity(0.18),
+                                      width: 1.0)
+                                  : null,
                             ),
                             child: Text(
                               tag,
@@ -741,23 +757,83 @@ class _CreateScreenState extends State<CreateScreen> {
                           height: 52,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF004B55),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.teal.withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                                color: const Color(0xFF0D7872).withOpacity(0.45),
+                                blurRadius: 16,
+                                offset: const Offset(0, 5),
                               ),
                             ],
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'AIで生成する ✦',
-                            style: AppTheme.getNotoSansJP(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Stack(
+                              children: [
+                                // ベースグラデーション
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color(0xFF2BB8AF),
+                                          Color(0xFF0D7872),
+                                          Color(0xFF054450),
+                                          Color(0xFF011820),
+                                        ],
+                                        stops: [0.0, 0.30, 0.65, 1.0],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // 上部光沢オーバーレイ
+                                Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: 22,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.white.withOpacity(0.18),
+                                          Colors.white.withOpacity(0.0),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // テキスト
+                                Positioned.fill(
+                                  child: Align(
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'AIで生成する ✦',
+                                      style: AppTheme.getNotoSansJP(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                ),
+                                // 外枠（ガラス感）
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.18),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
