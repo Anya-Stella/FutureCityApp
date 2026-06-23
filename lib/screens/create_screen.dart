@@ -314,6 +314,128 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
+  void _cyclePreset() {
+    final currentIndex = _presets.indexWhere((e) => e['url'] == _selectedPresetUrl);
+    final nextIndex = (currentIndex + 1) % _presets.length;
+    setState(() => _selectedPresetUrl = _presets[nextIndex]['url']);
+  }
+
+  int get _currentStep {
+    if (_generatedImageUrl != null && !_isGenerating) return 4;
+    if (_isGenerating) return 3;
+    return 1;
+  }
+
+  // ── ステップバー ─────────────────────────────────────────────
+  Widget _buildStepBar() {
+    final steps = ['撮る', 'タグ', '生成', '投稿'];
+    final current = _currentStep;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < steps.length; i++) ...[
+          _buildStepItem(i + 1, steps[i], i + 1 == current, i + 1 < current),
+          if (i < steps.length - 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              child: Text('→',
+                  style: TextStyle(
+                      color: AppTheme.sub.withOpacity(0.4), fontSize: 11)),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildStepItem(int num, String label, bool isActive, bool isDone) {
+    if (isActive) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.teal,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Text('$num',
+                  style: TextStyle(
+                      color: AppTheme.teal,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: 6),
+            Text(label,
+                style: AppTheme.getNotoSansJP(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+          ],
+        ),
+      );
+    }
+    return Row(
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: isDone ? AppTheme.teal.withOpacity(0.12) : Colors.transparent,
+            border: Border.all(color: AppTheme.sub.withOpacity(0.3)),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text('$num',
+              style: TextStyle(
+                  color: isDone ? AppTheme.teal : AppTheme.sub.withOpacity(0.55),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 5),
+        Text(label,
+            style: AppTheme.getNotoSansJP(
+                fontSize: 13, color: AppTheme.sub.withOpacity(0.65))),
+      ],
+    );
+  }
+
+  // ── セクションヘッダー ───────────────────────────────────────
+  Widget _buildSectionHeader(int num, String title, {String? subtitle}) {
+    return Row(
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration:
+              const BoxDecoration(color: AppTheme.teal, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: Text('$num',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800)),
+        ),
+        const SizedBox(width: 9),
+        Text(title,
+            style: AppTheme.getNotoSansJP(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.text)),
+        if (subtitle != null) ...[
+          const SizedBox(width: 4),
+          Text(subtitle,
+              style:
+                  AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub)),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -321,11 +443,11 @@ class _CreateScreenState extends State<CreateScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Custom Header
-            Container(
-              padding: const EdgeInsets.only(left: 18, right: 18, top: 12, bottom: 14),
+            // ── ヘッダー ────────────────────────────────────────
+            Padding(
+              padding:
+                  const EdgeInsets.only(left: 18, right: 18, top: 14, bottom: 0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
                     onTap: () {
@@ -335,473 +457,405 @@ class _CreateScreenState extends State<CreateScreen> {
                         Navigator.of(context).maybePop();
                       }
                     },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.arrow_back_ios_new, size: 16, color: AppTheme.text),
+                    child: const Icon(Icons.arrow_back_ios_new,
+                        size: 16, color: AppTheme.text),
                   ),
-                ),
-                Text(
-                  'アイデアをつくる',
-                  style: AppTheme.getNotoSansJP(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.text),
-                ),
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.border, width: 1.5),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        '未来のアイデアをつくる',
+                        style: AppTheme.getNotoSansJP(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.text),
+                      ),
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    '?',
-                    style: TextStyle(color: AppTheme.sub, fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
 
-          Expanded(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                children: [
-                  // 1. Image upload container
-                  Row(
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.teal.withOpacity(0.12),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text('📷', style: TextStyle(fontSize: 12)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '写真をアップロード',
-                        style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 11),
+            // ── ステップバー ────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: _buildStepBar(),
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFE8EAE6)),
 
-                  // Image Container
-                  Container(
-                    height: 196,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0C1920).withOpacity(0.12),
-                          blurRadius: 26,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: _selectedPresetUrl != null
-                              ? AppTheme.buildImage(_selectedPresetUrl!)
-                              : Container(color: AppTheme.border),
-                        ),
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  const Color(0xFF060F14).withOpacity(0.34),
-                                ],
-                              ),
-                            ),
+            // ── スクロールコンテンツ ─────────────────────────────
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+                  children: [
+                    // ── Section 1: 写真アップロード ────────────────
+                    _buildSectionHeader(1, '現在の写真をアップロード'),
+                    const SizedBox(height: 13),
+
+                    Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0C1920).withOpacity(0.12),
+                            blurRadius: 26,
+                            offset: const Offset(0, 10),
                           ),
-                        ),
-                        // Floating camera button
-                        Positioned(
-                          bottom: 14,
-                          left: 14,
-                          child: GestureDetector(
-                            onTap: () {
-                              // Cycle through presets as a demo upload action
-                              final currentIndex = _presets.indexWhere((element) => element['url'] == _selectedPresetUrl);
-                              final nextIndex = (currentIndex + 1) % _presets.length;
-                              setState(() {
-                                _selectedPresetUrl = _presets[nextIndex]['url'];
-                              });
-                            },
-                            child: Container(
-                              width: 50,
-                              height: 50,
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: _selectedPresetUrl != null
+                                ? AppTheme.buildImage(_selectedPresetUrl!)
+                                : Container(color: AppTheme.border),
+                          ),
+                          Positioned.fill(
+                            child: DecoratedBox(
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: const Color(0xFF07121A).withOpacity(0.78),
-                                border: Border.all(color: Colors.white.withOpacity(0.55), width: 1.5),
-                                boxShadow: const [
-                                  BoxShadow(color: Colors.black45, blurRadius: 14, offset: Offset(0, 4)),
-                                ],
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    const Color(0xFF060F14).withOpacity(0.38),
+                                  ],
+                                ),
                               ),
-                              child: const Icon(Icons.photo_camera_outlined, color: Colors.white, size: 22),
                             ),
                           ),
-                        ),
-                      ],
+                          // カメラボタン（左下）
+                          Positioned(
+                            bottom: 14,
+                            left: 14,
+                            child: GestureDetector(
+                              onTap: _cyclePreset,
+                              child: Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF07121A).withOpacity(0.72),
+                                  border: Border.all(
+                                      color: Colors.white.withOpacity(0.5),
+                                      width: 1.5),
+                                ),
+                                child: const Icon(Icons.photo_camera_outlined,
+                                    color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ),
+                          // 写真を選ぶボタン（右下）
+                          Positioned(
+                            bottom: 14,
+                            right: 14,
+                            child: GestureDetector(
+                              onTap: _cyclePreset,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 13, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.92),
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black.withOpacity(0.15),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2)),
+                                  ],
+                                ),
+                                child: Text('写真を選ぶ',
+                                    style: AppTheme.getNotoSansJP(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.text)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 28),
 
-                  // Preset Picker Row
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: _presets.map((preset) {
-                      final bool isSel = _selectedPresetUrl == preset['url'];
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedPresetUrl = preset['url']),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: isSel ? AppTheme.teal : AppTheme.border, width: isSel ? 2 : 1),
-                            borderRadius: BorderRadius.circular(10),
-                            color: isSel ? AppTheme.teal.withOpacity(0.05) : Colors.white,
-                          ),
-                          child: Text(
-                            preset['name']!,
-                            style: AppTheme.getNotoSansJP(
-                              fontSize: 11,
-                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                              color: isSel ? AppTheme.teal : AppTheme.sub,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 30),
+                    // ── Section 2: タグ選択 ───────────────────────
+                    _buildSectionHeader(2, 'アイデアのタグを選ぶ',
+                        subtitle: '（複数選択可）'),
+                    const SizedBox(height: 13),
 
-                  // 2. Choose Theme Tag Chips
-                  Row(
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.teal.withOpacity(0.12),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text('💬', style: TextStyle(fontSize: 12)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'テーマを選択',
-                        style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '（複数選択可）',
-                        style: AppTheme.getNotoSansJP(fontSize: 11, color: AppTheme.sub),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 13),
-
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: _displayTags.map((tag) {
-                      final bool isSelected = _selectedTags.contains(tag);
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _displayTags.map((tag) {
+                        final bool isSelected = _selectedTags.contains(tag);
+                        return GestureDetector(
+                          onTap: () => setState(() {
                             if (isSelected) {
                               _selectedTags.remove(tag);
                             } else {
                               _selectedTags.add(tag);
                             }
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppTheme.tealDark : AppTheme.uiGrey,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            tag,
-                            style: AppTheme.getNotoSansJP(
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? Colors.white : AppTheme.sub,
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppTheme.tealDark
+                                  : AppTheme.uiGrey,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              tag,
+                              style: AppTheme.getNotoSansJP(
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected ? Colors.white : AppTheme.sub,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 30),
-
-                  // 3. AI Predictive View Generation
-                  Row(
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.teal.withOpacity(0.12),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text('🌐', style: TextStyle(fontSize: 12)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'AIで未来景観を生成',
-                        style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 13),
-
-                  Container(
-                    height: 210,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0C1920).withOpacity(0.16),
-                          blurRadius: 30,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
+                        );
+                      }).toList(),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        // Show mock background
-                         Positioned.fill(
-                          child: _generatedImageUrl != null
-                              ? AppTheme.buildImage(_generatedImageUrl!)
-                              : Image.asset(
-                                  'assets/plaza-after.png',
-                                  fit: BoxFit.cover,
-                                ),
-                        ),
+                    const SizedBox(height: 28),
 
-                        // Spinner overlay when generating
-                        if (_isGenerating)
+                    // ── Section 3: AI生成 ────────────────────────
+                    _buildSectionHeader(3, 'AIで未来の景観を生成'),
+                    const SizedBox(height: 13),
+
+                    Container(
+                      height: 210,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0C1920).withOpacity(0.16),
+                            blurRadius: 30,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
                           Positioned.fill(
-                            child: Container(
-                              color: const Color(0xFF050E14).withOpacity(0.62),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const SizedBox(
-                                    width: 42,
-                                    height: 42,
-                                    child: CircularProgressIndicator(
-                                      color: AppTheme.accent,
-                                      strokeWidth: 3,
+                            child: _generatedImageUrl != null
+                                ? AppTheme.buildImage(_generatedImageUrl!)
+                                : Image.asset('assets/plaza-after.png',
+                                    fit: BoxFit.cover),
+                          ),
+                          // 生成中スピナー
+                          if (_isGenerating)
+                            Positioned.fill(
+                              child: Container(
+                                color: const Color(0xFF050E14).withOpacity(0.62),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(
+                                      width: 42,
+                                      height: 42,
+                                      child: CircularProgressIndicator(
+                                          color: AppTheme.accent, strokeWidth: 3),
                                     ),
-                                  ),
-                                  const SizedBox(height: 15),
-                                  Text(
-                                    _stepLabel.isNotEmpty ? _stepLabel : 'AIが未来の景観を生成中…',
+                                    const SizedBox(height: 15),
+                                    Text(
+                                      _stepLabel.isNotEmpty
+                                          ? _stepLabel
+                                          : 'AIが未来の景観を生成中…',
+                                      style: AppTheme.getNotoSansJP(
+                                          color: const Color(0xFFDFF4F1),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          // 生成済みバッジ
+                          if (_generatedImageUrl != null && !_isGenerating)
+                            Positioned(
+                              top: 12,
+                              left: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xEC006C74),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text('AFTER（AI生成）',
                                     style: AppTheme.getNotoSansJP(
-                                      color: const Color(0xFFDFF4F1),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700)),
                               ),
                             ),
-                          ),
-
-                        // Succeeded badge overlay
-                        if (_generatedImageUrl != null && !_isGenerating)
-                          Positioned(
-                            top: 12,
-                            left: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xEC006C74),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                'AFTER（AI生成）',
-                                style: AppTheme.getNotoSansJP(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        // Generate Button Overlay
-                        if (_generatedImageUrl == null && !_isGenerating)
-                          Positioned.fill(
-                            child: Container(
-                              color: Colors.black12,
-                              padding: const EdgeInsets.all(18),
-                              alignment: Alignment.bottomCenter,
+                          // 生成ボタン（画像内ボトム）
+                          if (_generatedImageUrl == null && !_isGenerating)
+                            Positioned(
+                              left: 14, right: 14, bottom: 14,
                               child: GestureDetector(
                                 onTap: _triggerAIGeneration,
                                 child: Container(
-                                  height: 50,
-                                  width: double.infinity,
+                                  height: 52,
                                   decoration: BoxDecoration(
-                                    gradient: AppTheme.brandGradient,
+                                    color: const Color(0xFF004B55),
                                     borderRadius: BorderRadius.circular(14),
                                     boxShadow: [
                                       BoxShadow(
                                         color: AppTheme.teal.withOpacity(0.3),
-                                        blurRadius: 10,
+                                        blurRadius: 12,
                                         offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'AIで生成する ★',
-                                        style: AppTheme.getNotoSansJP(
-                                          color: Colors.white,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    'AIで生成する ✦',
+                                    style: AppTheme.getNotoSansJP(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700),
                                   ),
                                 ),
                               ),
                             ),
+                        ],
+                      ),
+                    ),
+
+                    // ── 生成後フォーム ─────────────────────────────
+                    if (_generatedImageUrl != null && !_isGenerating) ...[
+                      const SizedBox(height: 28),
+                      _buildSectionHeader(4, 'アイデア詳細を入力'),
+                      const SizedBox(height: 14),
+
+                      DropdownButtonFormField<String>(
+                        value: _selectedProjectId,
+                        hint: Text('紐づける行政チャレンジを選択（任意）',
+                            style: AppTheme.getNotoSansJP(
+                                fontSize: 13, color: AppTheme.sub)),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 14),
+                        ),
+                        items: _projects.map((proj) {
+                          return DropdownMenuItem<String>(
+                            value: proj['id'],
+                            child: Text(proj['title'] ?? '',
+                                style: AppTheme.getNotoSansJP(fontSize: 13)),
+                          );
+                        }).toList(),
+                        onChanged: (val) =>
+                            setState(() => _selectedProjectId = val),
+                      ),
+                      const SizedBox(height: 14),
+
+                      TextFormField(
+                        controller: _addressController,
+                        style: AppTheme.getNotoSansJP(fontSize: 14),
+                        decoration: InputDecoration(
+                          labelText: '実施予定エリア・場所',
+                          hintText: '例: 未来都市指定計画エリア 3工区',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (val) => (val == null || val.isEmpty)
+                            ? 'エリア・場所を入力してください'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+
+                      TextFormField(
+                        controller: _titleController,
+                        style: AppTheme.getNotoSansJP(fontSize: 14),
+                        decoration: InputDecoration(
+                          labelText: 'タイトル',
+                          hintText: '例: 緑豊かなスマートバス停の設置',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (val) => (val == null || val.isEmpty)
+                            ? 'タイトルを入力してください'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+
+                      TextFormField(
+                        controller: _bodyController,
+                        style: AppTheme.getNotoSansJP(fontSize: 14),
+                        maxLines: 5,
+                        decoration: InputDecoration(
+                          labelText: '提案内容',
+                          hintText:
+                              '現状の課題、AIで生成した画像の意図、もたらされる効果などを記入してください。',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (val) => (val == null || val.isEmpty)
+                            ? '内容を記入してください'
+                            : null,
+                      ),
+                      const SizedBox(height: 22),
+
+                      GestureDetector(
+                        onTap: _submitPost,
+                        child: Container(
+                          height: 52,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.brandGradient,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    const Color(0xFF006C74).withOpacity(0.32),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                  ),
-
-                  // 4. Beautiful, Unobtrusive Text Form inputs (shown ONLY when AI Generation is complete)
-                  if (_generatedImageUrl != null && !_isGenerating) ...[
-                    const SizedBox(height: 24),
-                    Text(
-                      '3. アイデア詳細',
-                      style: AppTheme.getNotoSansJP(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text),
-                    ),
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<String>(
-                      value: _selectedProjectId,
-                      hint: Text('紐づける行政チャレンジを選択（任意）', style: AppTheme.getNotoSansJP(fontSize: 13, color: AppTheme.sub)),
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                      ),
-                      items: _projects.map((proj) {
-                        return DropdownMenuItem<String>(
-                          value: proj['id'],
-                          child: Text(proj['title'] ?? '', style: AppTheme.getNotoSansJP(fontSize: 13)),
-                        );
-                      }).toList(),
-                      onChanged: (val) => setState(() => _selectedProjectId = val),
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _addressController,
-                      style: AppTheme.getNotoSansJP(fontSize: 14),
-                      decoration: InputDecoration(
-                        labelText: '実施予定エリア・場所',
-                        hintText: '例: 未来都市指定計画エリア 3工区',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      validator: (val) => (val == null || val.isEmpty) ? 'エリア・場所を入力してください' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _titleController,
-                      style: AppTheme.getNotoSansJP(fontSize: 14),
-                      decoration: InputDecoration(
-                        labelText: 'タイトル',
-                        hintText: '例: 緑豊かなスマートバス停の設置',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      validator: (val) => (val == null || val.isEmpty) ? 'タイトルを入力してください' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _bodyController,
-                      style: AppTheme.getNotoSansJP(fontSize: 14),
-                      maxLines: 5,
-                      decoration: InputDecoration(
-                        labelText: '提案内容',
-                        hintText: '現状の課題、AIで生成した画像の意図、もたらされる効果などを記入してください。',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      validator: (val) => (val == null || val.isEmpty) ? '内容を記入してください' : null,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Submit Post Button
-                    GestureDetector(
-                      onTap: _submitPost,
-                      child: Container(
-                        height: 52,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.brandGradient,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF006C74).withOpacity(0.32),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'この景観でアイデアを投稿する',
-                          style: AppTheme.getNotoSansJP(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                          alignment: Alignment.center,
+                          child: Text('この景観でアイデアを投稿する',
+                              style: AppTheme.getNotoSansJP(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700)),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 14),
 
-                    const SizedBox(height: 14),
-                    GestureDetector(
-                      onTap: _triggerAIGeneration,
-                      child: Center(
-                        child: Text(
-                          'もう一度生成する',
-                          style: AppTheme.getNotoSansJP(color: AppTheme.sub, fontSize: 12, fontWeight: FontWeight.w500),
+                      GestureDetector(
+                        onTap: _triggerAIGeneration,
+                        child: Center(
+                          child: Text('もう一度生成する',
+                              style: AppTheme.getNotoSansJP(
+                                  color: AppTheme.sub,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500)),
                         ),
                       ),
-                    ),
+                    ],
+                    const SizedBox(height: 40),
                   ],
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
