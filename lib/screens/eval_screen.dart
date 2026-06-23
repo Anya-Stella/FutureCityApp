@@ -499,6 +499,21 @@ class _EvalScreenState extends State<EvalScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // 艶ライン（上部ハイライト）
+          Container(
+            height: 1,
+            margin: const EdgeInsets.only(bottom: 13),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  Colors.white.withOpacity(0.30),
+                  Colors.transparent,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
           Row(
             children: [
               Text(
