@@ -375,7 +375,7 @@ class _EvalScreenState extends State<EvalScreen> {
   // ── アクションボタン ──────────────────────────────────────────
   Widget _buildActionButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // 見送る
         GestureDetector(
@@ -418,6 +418,7 @@ class _EvalScreenState extends State<EvalScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 48),
         // 応援する
         GestureDetector(
           onTap: () => _handleSwipe('support'),
