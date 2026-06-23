@@ -357,7 +357,17 @@ class _CreateScreenState extends State<CreateScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppTheme.teal,
+          gradient: const RadialGradient(
+            center: Alignment(0.0, -0.75),
+            radius: 1.1,
+            colors: [
+              Color(0xFF10756F),
+              Color(0xFF0A5650),
+              Color(0xFF064A52),
+              Color(0xFF0A3540),
+            ],
+            stops: [0.0, 0.30, 0.62, 1.0],
+          ),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
@@ -417,7 +427,20 @@ class _CreateScreenState extends State<CreateScreen> {
           width: 26,
           height: 26,
           decoration:
-              const BoxDecoration(color: AppTheme.teal, shape: BoxShape.circle),
+              const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0.0, -0.75),
+                  radius: 1.1,
+                  colors: [
+                    Color(0xFF10756F),
+                    Color(0xFF0A5650),
+                    Color(0xFF064A52),
+                    Color(0xFF0A3540),
+                  ],
+                  stops: [0.0, 0.30, 0.62, 1.0],
+                ),
+                shape: BoxShape.circle,
+              ),
           alignment: Alignment.center,
           child: Text('$num',
               style: const TextStyle(
@@ -921,12 +944,21 @@ class _CreateScreenState extends State<CreateScreen> {
                           height: 52,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            gradient: AppTheme.brandGradient,
+                            gradient: const RadialGradient(
+                              center: Alignment(0.0, -0.8),
+                              radius: 1.4,
+                              colors: [
+                                Color(0xFF10756F),
+                                Color(0xFF0A5650),
+                                Color(0xFF064A52),
+                                Color(0xFF0A3540),
+                              ],
+                              stops: [0.0, 0.28, 0.60, 1.0],
+                            ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color:
-                                    const Color(0xFF006C74).withOpacity(0.32),
+                                color: const Color(0xFF0A5650).withOpacity(0.4),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
