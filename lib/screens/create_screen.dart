@@ -617,10 +617,10 @@ class _CreateScreenState extends State<CreateScreen> {
                                       center: Alignment(0.0, -0.75),
                                       radius: 1.1,
                                       colors: [
-                                        Color(0xFF1A8F89),
-                                        Color(0xFF0D6B65),
-                                        Color(0xFF054A52),
-                                        Color(0xFF011C24),
+                                        Color(0xFF10756F),
+                                        Color(0xFF0A5650),
+                                        Color(0xFF064A52),
+                                        Color(0xFF0A3540),
                                       ],
                                       stops: [0.0, 0.30, 0.62, 1.0],
                                     )
