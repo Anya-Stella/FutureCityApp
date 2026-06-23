@@ -613,16 +613,16 @@ class _CreateScreenState extends State<CreateScreen> {
                                 horizontal: 16, vertical: 9),
                             decoration: BoxDecoration(
                               gradient: isSelected
-                                  ? const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
+                                  ? const RadialGradient(
+                                      center: Alignment(0.0, -0.75),
+                                      radius: 1.1,
                                       colors: [
-                                        Color(0xFF2BB8AF),
-                                        Color(0xFF0D7872),
-                                        Color(0xFF054450),
-                                        Color(0xFF011820),
+                                        Color(0xFF3EC6BE),
+                                        Color(0xFF148C86),
+                                        Color(0xFF065058),
+                                        Color(0xFF011C24),
                                       ],
-                                      stops: [0.0, 0.30, 0.65, 1.0],
+                                      stops: [0.0, 0.30, 0.62, 1.0],
                                     )
                                   : null,
                               color: isSelected ? null : AppTheme.uiGrey,
@@ -774,16 +774,16 @@ class _CreateScreenState extends State<CreateScreen> {
                                 Positioned.fill(
                                   child: Container(
                                     decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
+                                      gradient: RadialGradient(
+                                        center: Alignment(0.0, -0.8),
+                                        radius: 1.4,
                                         colors: [
-                                          Color(0xFF2BB8AF),
-                                          Color(0xFF0D7872),
-                                          Color(0xFF054450),
-                                          Color(0xFF011820),
+                                          Color(0xFF3EC6BE),
+                                          Color(0xFF148C86),
+                                          Color(0xFF065058),
+                                          Color(0xFF011C24),
                                         ],
-                                        stops: [0.0, 0.30, 0.65, 1.0],
+                                        stops: [0.0, 0.28, 0.60, 1.0],
                                       ),
                                     ),
                                   ),
