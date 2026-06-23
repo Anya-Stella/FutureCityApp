@@ -487,7 +487,7 @@ class _EvalScreenState extends State<EvalScreen> {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + bottomPad),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1E2B),
+        color: const Color(0xFF02141C),
         border: Border(
           top: BorderSide(color: Colors.white.withOpacity(0.08)),
           left: BorderSide(color: Colors.white.withOpacity(0.08)),
