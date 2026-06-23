@@ -639,33 +639,33 @@ class _EvalScreenState extends State<EvalScreen> {
         children: [
           // 著者
           Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, top: 14),
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 16),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 19,
+                  radius: 22,
                   backgroundColor: const Color(0xFFE8E8E8),
                   backgroundImage: author?['avatar_url'] != null
                       ? NetworkImage(author['avatar_url'])
                       : null,
                   child: author?['avatar_url'] == null
                       ? const Icon(Icons.person,
-                          color: AppTheme.sub, size: 18)
+                          color: AppTheme.sub, size: 20)
                       : null,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(author?['display_name'] ?? '市民メンバー',
                           style: AppTheme.getNotoSansJP(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.text)),
                       Text(author?['area_name'] ?? '未登録エリア',
                           style: AppTheme.getNotoSansJP(
-                              fontSize: 11, color: AppTheme.sub)),
+                              fontSize: 12, color: AppTheme.sub)),
                     ],
                   ),
                 ),
@@ -674,31 +674,32 @@ class _EvalScreenState extends State<EvalScreen> {
           ),
           // タイトル・本文
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   post['title'] ?? '無題のアイデア',
                   style: AppTheme.getNotoSansJP(
-                      fontSize: 18,
+                      fontSize: 22,
                       fontWeight: FontWeight.w900,
                       color: AppTheme.text,
-                      height: 1.35),
-                  maxLines: 1,
+                      height: 1.3),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   post['body'] ?? '',
                   style: AppTheme.getNotoSansJP(
-                      fontSize: 12, color: AppTheme.sub, height: 1.5),
+                      fontSize: 13, color: AppTheme.sub, height: 1.5),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 12),
           // 画像
           Expanded(
             child: Padding(
@@ -757,24 +758,23 @@ class _EvalScreenState extends State<EvalScreen> {
                 [];
             if (tagsList.isEmpty) return const SizedBox.shrink();
             return Padding(
-              padding:
-                  const EdgeInsets.only(left: 16, right: 16, top: 10),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
               child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
+                spacing: 7,
+                runSpacing: 7,
                 children: tagsList
                     .map((tag) => Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 5),
+                              horizontal: 13, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F1F1),
+                            color: const Color(0xFFF3F3F3),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(tag,
                               style: AppTheme.getNotoSansJP(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF444444))),
+                                  color: const Color(0xFF555555))),
                         ))
                     .toList(),
               ),
@@ -783,28 +783,28 @@ class _EvalScreenState extends State<EvalScreen> {
           // 統計
           Padding(
             padding: const EdgeInsets.only(
-                left: 16, right: 16, top: 10, bottom: 14),
+                left: 16, right: 16, top: 12, bottom: 16),
             child: Row(
               children: [
                 const Icon(Icons.favorite_border,
-                    size: 14, color: AppTheme.sub),
+                    size: 16, color: AppTheme.sub),
                 const SizedBox(width: 5),
                 Text('${metrics?['support_count'] ?? 0}',
                     style: AppTheme.getNotoSansJP(
-                        fontSize: 12, color: AppTheme.sub)),
-                const SizedBox(width: 16),
+                        fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.sub)),
+                const SizedBox(width: 18),
                 const Icon(Icons.chat_bubble_outline,
-                    size: 14, color: AppTheme.sub),
+                    size: 16, color: AppTheme.sub),
                 const SizedBox(width: 5),
                 Text('${metrics?['comment_count'] ?? 0}',
                     style: AppTheme.getNotoSansJP(
-                        fontSize: 12, color: AppTheme.sub)),
+                        fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.sub)),
                 const Spacer(),
                 Text(
                     _getAgoString(
                         post['published_at'] ?? post['created_at']),
                     style: AppTheme.getNotoSansJP(
-                        fontSize: 12, color: AppTheme.sub)),
+                        fontSize: 13, color: AppTheme.sub)),
               ],
             ),
           ),
