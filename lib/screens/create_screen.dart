@@ -17,6 +17,7 @@ class _CreateScreenState extends State<CreateScreen> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   final _addressController = TextEditingController();
+  final _promptController = TextEditingController();
 
   List<dynamic> _projects = [];
   String? _selectedProjectId;
@@ -81,6 +82,7 @@ class _CreateScreenState extends State<CreateScreen> {
     _titleController.dispose();
     _bodyController.dispose();
     _addressController.dispose();
+    _promptController.dispose();
     super.dispose();
   }
 
@@ -137,7 +139,10 @@ class _CreateScreenState extends State<CreateScreen> {
       }
 
       final tagListString = _selectedTags.join(', ');
-      final prompt = 'A beautiful futuristic urban space in Japan, incorporating: $tagListString. ${_titleController.text.trim()}. High resolution, realistic.';
+      final userPrompt = _promptController.text.trim();
+      final prompt = 'A beautiful futuristic urban space in Japan, incorporating: $tagListString.'
+          '${userPrompt.isNotEmpty ? ' $userPrompt.' : ''}'
+          ' High resolution, realistic.';
 
       // 1. Insert job to ai_generation_jobs
       final job = await SupabaseService.insertAIGenerationJob(
@@ -632,6 +637,29 @@ class _CreateScreenState extends State<CreateScreen> {
                     _buildSectionHeader(3, 'AIで未来の景観を生成'),
                     const SizedBox(height: 13),
 
+                    // ── プロンプト入力 ────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.border, width: 1.5),
+                      ),
+                      child: TextField(
+                        controller: _promptController,
+                        maxLines: 3,
+                        style: AppTheme.getNotoSansJP(
+                            fontSize: 14, color: AppTheme.text),
+                        decoration: InputDecoration(
+                          hintText: 'AIへの指示を入力（任意）\n例: 夜でも明るく、子どもが遊べる広場にしてほしい',
+                          hintStyle: AppTheme.getNotoSansJP(
+                              fontSize: 13, color: AppTheme.sub),
+                          contentPadding: const EdgeInsets.all(14),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+
                     Container(
                       height: 210,
                       decoration: BoxDecoration(
@@ -700,39 +728,40 @@ class _CreateScreenState extends State<CreateScreen> {
                                         fontWeight: FontWeight.w700)),
                               ),
                             ),
-                          // 生成ボタン（画像内ボトム）
-                          if (_generatedImageUrl == null && !_isGenerating)
-                            Positioned(
-                              left: 14, right: 14, bottom: 14,
-                              child: GestureDetector(
-                                onTap: _triggerAIGeneration,
-                                child: Container(
-                                  height: 52,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF004B55),
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.teal.withOpacity(0.3),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    'AIで生成する ✦',
-                                    style: AppTheme.getNotoSansJP(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),
+
+                    // 生成ボタン（画像の下）
+                    if (_generatedImageUrl == null && !_isGenerating) ...[
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: _triggerAIGeneration,
+                        child: Container(
+                          height: 52,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF004B55),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.teal.withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'AIで生成する ✦',
+                            style: AppTheme.getNotoSansJP(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
 
                     // ── 生成後フォーム ─────────────────────────────
                     if (_generatedImageUrl != null && !_isGenerating) ...[
