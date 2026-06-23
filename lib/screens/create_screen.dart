@@ -110,10 +110,21 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
+  // Location is fixed to the Imperial Palace (皇居) for this MVP.
+  static const String _fixedLocation = '皇居';
+
   Future<void> _triggerAIGeneration() async {
     if (_selectedPresetUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('BEFORE画像（元の風景）を選択してください')),
+      );
+      return;
+    }
+
+    // Require at least a tag or a free prompt before starting generation.
+    if (_selectedTags.isEmpty && _promptController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('タグを選ぶか、AIへの指示を入力してください')),
       );
       return;
     }
@@ -140,9 +151,11 @@ class _CreateScreenState extends State<CreateScreen> {
 
       final tagListString = _selectedTags.join(', ');
       final userPrompt = _promptController.text.trim();
-      final prompt = 'A beautiful futuristic urban space in Japan, incorporating: $tagListString.'
-          '${userPrompt.isNotEmpty ? ' $userPrompt.' : ''}'
-          ' High resolution, realistic.';
+      // Location is fixed to 皇居. The Edge Function does the final, weighted
+      // prompt synthesis server-side; this string is the raw job input.
+      final prompt = '場所: $_fixedLocation。'
+          '${tagListString.isNotEmpty ? 'タグ: $tagListString。' : ''}'
+          '${userPrompt.isNotEmpty ? '要望: $userPrompt' : ''}';
 
       // 1. Insert job to ai_generation_jobs
       final job = await SupabaseService.insertAIGenerationJob(
@@ -155,12 +168,21 @@ class _CreateScreenState extends State<CreateScreen> {
 
       final jobId = job['id'];
 
-      // 2. Poll job status until succeeded or failed
+      // 2. Trigger server-side processing (OpenAI runs server-side only).
+      //    Fire-and-forget so polling starts immediately and observes
+      //    queued/running/succeeded/failed through ai_generation_jobs.
+      unawaited(
+        SupabaseService.invokeProcessAIGeneration(jobId).catchError((e) {
+          debugPrint('Error invoking process-ai-generation: $e');
+        }),
+      );
+
+      // 3. Poll job status until succeeded or failed
       int checkCount = 0;
       Timer.periodic(const Duration(seconds: 2), (timer) async {
         checkCount++;
 
-        if (checkCount > 8) { // Timeout safety fallback (shortened for better UX)
+        if (checkCount > 40) { // Timeout safety fallback for image generation (about 80s)
           timer.cancel();
           _finishJobWithFallback();
           return;
