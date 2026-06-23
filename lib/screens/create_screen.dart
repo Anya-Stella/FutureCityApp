@@ -780,7 +780,7 @@ class _CreateScreenState extends State<CreateScreen> {
                           height: 52,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(999),
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(0xFF0D7872).withOpacity(0.45),
@@ -790,7 +790,7 @@ class _CreateScreenState extends State<CreateScreen> {
                             ],
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(999),
                             child: Stack(
                               children: [
                                 // ベースグラデーション
@@ -830,16 +830,34 @@ class _CreateScreenState extends State<CreateScreen> {
                                     ),
                                   ),
                                 ),
-                                // テキスト
+                                // テキスト＋星
                                 Positioned.fill(
                                   child: Align(
                                     alignment: Alignment.center,
-                                    child: Text(
-                                      'AIで生成する ✦',
-                                      style: AppTheme.getNotoSansJP(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'AIで生成する',
+                                          style: AppTheme.getNotoSansJP(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        // 星3つ（大・小・中）
+                                        Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text('✦', style: TextStyle(color: Colors.white, fontSize: 8, height: 1)),
+                                            const SizedBox(height: 1),
+                                            const Text('✦', style: TextStyle(color: Colors.white, fontSize: 13, height: 1)),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 3),
+                                        const Text('✦', style: TextStyle(color: Colors.white, fontSize: 7, height: 1)),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -847,7 +865,7 @@ class _CreateScreenState extends State<CreateScreen> {
                                 Positioned.fill(
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
                                         color: Colors.white.withOpacity(0.18),
                                         width: 1.0,

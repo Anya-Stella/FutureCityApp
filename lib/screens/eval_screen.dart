@@ -708,9 +708,9 @@ class _EvalScreenState extends State<EvalScreen> {
           const SizedBox(height: 10),
           // 画像
           Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
-              child: SizedBox(
-                height: 200,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+              child: AspectRatio(
+                aspectRatio: 3 / 2,
               child: ClipRRect(
                 borderRadius: BorderRadius.zero,
                 child: Stack(
