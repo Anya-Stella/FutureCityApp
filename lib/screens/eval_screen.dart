@@ -444,25 +444,26 @@ class _EvalScreenState extends State<EvalScreen> {
                 width: 58, height: 58,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                     colors: [
-                      Color(0xFF1DB8AE),
-                      Color(0xFF0A7A74),
-                      Color(0xFF054A4E),
+                      Color(0xFF3DDDD6),
+                      Color(0xFF0FA89F),
+                      Color(0xFF03585C),
+                      Color(0xFF022E32),
                     ],
-                    stops: [0.0, 0.5, 1.0],
+                    stops: [0.0, 0.35, 0.72, 1.0],
                   ),
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: Colors.white.withOpacity(0.25), width: 1.5),
+                      color: Colors.white.withOpacity(0.35), width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                        color: const Color(0xFF0E9A92).withOpacity(0.45),
-                        blurRadius: 20,
+                        color: const Color(0xFF1ECECA).withOpacity(0.5),
+                        blurRadius: 22,
                         spreadRadius: 1),
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withOpacity(0.45),
                         blurRadius: 18,
                         offset: const Offset(0, 7)),
                   ],
