@@ -621,10 +621,16 @@ class _EvalScreenState extends State<EvalScreen> {
   // ── スワイプカード ────────────────────────────────────────────
   Widget _buildSwipeCard(dynamic post) {
     final mediaList = post['post_media'] as List?;
-    final primaryImg = mediaList != null && mediaList.isNotEmpty
-        ? mediaList.firstWhere((m) => m['media_type'] == 'generated',
-            orElse: () => mediaList.first)['url']
+    final generatedImg = mediaList != null && mediaList.isNotEmpty
+        ? (mediaList.firstWhere((m) => m['media_type'] == 'generated',
+                orElse: () => <String, dynamic>{})['url'] ?? '')
         : '';
+    final originalImg = mediaList != null && mediaList.isNotEmpty
+        ? (mediaList.firstWhere(
+                (m) => m['media_type'] != 'generated',
+                orElse: () => <String, dynamic>{})['url'] ?? '')
+        : '';
+    final primaryImg = generatedImg.isNotEmpty ? generatedImg : originalImg;
     final author = post['profiles'];
     final metrics = post['post_metrics'];
 
@@ -706,52 +712,44 @@ class _EvalScreenState extends State<EvalScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // 画像
+          // 画像（before/afterスライダー or 単体）
           Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-              child: AspectRatio(
-                aspectRatio: 3 / 2,
-              child: ClipRRect(
-                borderRadius: BorderRadius.zero,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: primaryImg.isNotEmpty
-                          ? Image.network(primaryImg,
-                              fit: BoxFit.cover,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(
-                                    child: CircularProgressIndicator(
-                                        color: AppTheme.teal));
-                              },
-                              errorBuilder: (_, __, ___) => const Center(
-                                    child: Icon(Icons.broken_image,
-                                        color: AppTheme.sub, size: 30),
-                                  ))
-                          : Container(color: AppTheme.border),
-                    ),
-                    if (metrics?['support_count'] != null &&
-                        metrics?['support_count'] < 5)
-                      Positioned(
-                        top: 10, left: 10,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xECcda86a),
-                            borderRadius: BorderRadius.circular(999),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+            child: AspectRatio(
+              aspectRatio: 3 / 2,
+              child: ClipRect(
+                child: generatedImg.isNotEmpty && originalImg.isNotEmpty
+                    ? _BeforeAfterSlider(
+                        beforeUrl: originalImg,
+                        afterUrl: generatedImg,
+                      )
+                    : Stack(
+                        children: [
+                          Positioned.fill(
+                            child: primaryImg.isNotEmpty
+                                ? Image.network(primaryImg, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(color: AppTheme.border))
+                                : Container(color: AppTheme.border),
                           ),
-                          child: Text('🌱 応援が少ない',
-                              style: AppTheme.getNotoSansJP(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF3A2C0E))),
-                        ),
+                          if (metrics?['support_count'] != null &&
+                              metrics?['support_count'] < 5)
+                            Positioned(
+                              top: 10, left: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xECcda86a),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text('🌱 応援が少ない',
+                                    style: AppTheme.getNotoSansJP(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF3A2C0E))),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
               ),
             ),
           ),
@@ -928,6 +926,119 @@ class _EvalScreenState extends State<EvalScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Before/After スライダー ──────────────────────────────────────
+class _BeforeAfterSlider extends StatefulWidget {
+  final String beforeUrl;
+  final String afterUrl;
+  const _BeforeAfterSlider({required this.beforeUrl, required this.afterUrl});
+
+  @override
+  State<_BeforeAfterSlider> createState() => _BeforeAfterSliderState();
+}
+
+class _BeforeAfterSliderState extends State<_BeforeAfterSlider> {
+  double _pos = 0.5; // 0.0=全てafter, 1.0=全てbefore
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = constraints.maxHeight;
+        final divY = (h * _pos).clamp(20.0, h - 20.0);
+
+        return GestureDetector(
+          onPanUpdate: (d) => setState(() {
+            _pos = (_pos + d.delta.dy / h).clamp(0.05, 0.95);
+          }),
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              // After（背面・全体）
+              Positioned.fill(
+                child: Image.network(widget.afterUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(color: const Color(0xFFE0E0E0))),
+              ),
+              // Before（上部クリップ）
+              ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  heightFactor: _pos,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    height: h,
+                    child: Image.network(widget.beforeUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: const Color(0xFFCCCCCC))),
+                  ),
+                ),
+              ),
+              // ラベル: 現在の街並み
+              Positioned(
+                top: 10, left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('現在の街並み',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              // ラベル: 未来の景観イメージ
+              Positioned(
+                bottom: 10, left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('未来の景観イメージ',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              // 分割ライン
+              Positioned(
+                top: divY - 1,
+                left: 0, right: 0,
+                child: Container(
+                  height: 1.5,
+                  color: Colors.white.withOpacity(0.85),
+                ),
+              ),
+              // ハンドル
+              Positioned(
+                top: divY - 18,
+                left: constraints.maxWidth / 2 - 18,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.unfold_more,
+                      size: 18, color: Color(0xFF444444)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
