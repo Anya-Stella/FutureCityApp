@@ -7,6 +7,8 @@ class PostCard extends StatelessWidget {
   final int likes;
   final int comments;
   final String? author;
+  final String? area;
+  final String? ago;
   final VoidCallback? onTap;
 
   const PostCard({
@@ -16,6 +18,8 @@ class PostCard extends StatelessWidget {
     required this.likes,
     required this.comments,
     this.author,
+    this.area,
+    this.ago,
     this.onTap,
   });
 
@@ -27,11 +31,10 @@ class PostCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFECECEC), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
+              color: const Color(0xFF0D2230).withOpacity(0.07),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
@@ -39,105 +42,132 @@ class PostCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.max,
           children: [
-            // Image with nearly square aspect ratio (e.g. 1 / 0.9)
-            AspectRatio(
-              aspectRatio: 1 / 0.9,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: const Color(0xFFF9F9F9),
-                    child: const Center(
-                      child: CircularProgressIndicator(color: AppTheme.teal),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: const Color(0xFFF5F5F5),
-                  child: const Center(
-                    child: Icon(Icons.broken_image, color: Colors.grey, size: 24),
-                  ),
-                ),
+            Flexible(
+              flex: 4,
+              child: SizedBox(
+                width: double.infinity,
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: AppTheme.uiGrey,
+                            child: const Center(
+                              child: CircularProgressIndicator(color: AppTheme.teal, strokeWidth: 2),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: AppTheme.uiGrey,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, color: Colors.white54, size: 24),
+                          ),
+                        ),
+                      )
+                    : Container(color: AppTheme.uiGrey),
               ),
             ),
-            Expanded(
+            Flexible(
+              flex: 3,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Title
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.getNotoSansJP(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                        height: 1.35,
-                      ),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Title (上部)
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.getNotoSansJP(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.text,
+                      height: 1.4,
+                      letterSpacing: -0.01,
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Author: "by [display_name]"
-                        if (author != null)
+                  ),
+                  // by + いいね/コメント (下部)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  // Metadata (Author/Area/Ago) if provided
+                  if (author != null || area != null || ago != null) ...[
+                    Text(
+                      author != null && author!.startsWith('by ')
+                          ? author!
+                          : [
+                              if (author != null) author,
+                              if (area != null) area,
+                              if (ago != null) ago,
+                            ].join('・'),
+                      style: AppTheme.getNotoSansJP(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.sub,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                  // Actions (Likes & Comments)
+                  Row(
+                    children: [
+                      // Likes Icon + Text
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.favorite_border,
+                            size: 12,
+                            color: AppTheme.sub,
+                          ),
+                          const SizedBox(width: 4),
                           Text(
-                            'by $author',
+                            '$likes',
                             style: AppTheme.getNotoSansJP(
                               fontSize: 11,
-                              color: Colors.black54,
                               fontWeight: FontWeight.w500,
+                              color: AppTheme.sub,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        const SizedBox(height: 6),
-                        // Stats row (heart and comment bubble)
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.favorite_border,
-                              size: 13,
-                              color: Colors.black45,
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      // Comments Icon + Text
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline,
+                            size: 12,
+                            color: AppTheme.sub,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$comments',
+                            style: AppTheme.getNotoSansJP(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.sub,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$likes',
-                              style: AppTheme.getNotoSansJP(
-                                fontSize: 11,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Icon(
-                              Icons.chat_bubble_outline,
-                              size: 13,
-                              color: Colors.black45,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$comments',
-                              style: AppTheme.getNotoSansJP(
-                                fontSize: 11,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                    ],
+                  ),
+                ],
               ),
             ),
+          ),
           ],
         ),
       ),
