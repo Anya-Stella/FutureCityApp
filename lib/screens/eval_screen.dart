@@ -399,47 +399,53 @@ class _EvalScreenState extends State<EvalScreen> {
                 child: const Icon(Icons.close,
                     color: Color(0xFF3A4248), size: 28),
               ),
-              const SizedBox(width: 13),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('左にスワイプ',
-                      style: AppTheme.getNotoSansJP(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700)),
-                  Text('見送る',
-                      style: AppTheme.getNotoSansJP(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                ],
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 62,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('左にスワイプ',
+                        style: AppTheme.getNotoSansJP(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700)),
+                    Text('見送る',
+                        style: AppTheme.getNotoSansJP(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 48),
+        const SizedBox(width: 40),
         // 応援する
         GestureDetector(
           onTap: () => _handleSwipe('support'),
           child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('右にスワイプ',
-                      style: AppTheme.getNotoSansJP(
-                          color: AppTheme.accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700)),
-                  Text('応援する',
-                      style: AppTheme.getNotoSansJP(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                ],
+              SizedBox(
+                width: 62,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('右にスワイプ',
+                        style: AppTheme.getNotoSansJP(
+                            color: AppTheme.accent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700)),
+                    Text('応援する',
+                        style: AppTheme.getNotoSansJP(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ),
               ),
-              const SizedBox(width: 13),
+              const SizedBox(width: 10),
               Container(
                 width: 58, height: 58,
                 decoration: BoxDecoration(
