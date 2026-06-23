@@ -639,33 +639,33 @@ class _EvalScreenState extends State<EvalScreen> {
         children: [
           // 著者
           Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, top: 16),
+            padding: const EdgeInsets.only(left: 14, right: 14, top: 14),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 22,
+                  radius: 18,
                   backgroundColor: const Color(0xFFE8E8E8),
                   backgroundImage: author?['avatar_url'] != null
                       ? NetworkImage(author['avatar_url'])
                       : null,
                   child: author?['avatar_url'] == null
                       ? const Icon(Icons.person,
-                          color: AppTheme.sub, size: 20)
+                          color: AppTheme.sub, size: 16)
                       : null,
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(author?['display_name'] ?? '市民メンバー',
                           style: AppTheme.getNotoSansJP(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.text)),
                       Text(author?['area_name'] ?? '未登録エリア',
                           style: AppTheme.getNotoSansJP(
-                              fontSize: 12, color: AppTheme.sub)),
+                              fontSize: 11, color: AppTheme.sub)),
                     ],
                   ),
                 ),
@@ -674,32 +674,32 @@ class _EvalScreenState extends State<EvalScreen> {
           ),
           // タイトル・本文
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   post['title'] ?? '無題のアイデア',
                   style: AppTheme.getNotoSansJP(
-                      fontSize: 22,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
                       color: AppTheme.text,
                       height: 1.3),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   post['body'] ?? '',
                   style: AppTheme.getNotoSansJP(
-                      fontSize: 13, color: AppTheme.sub, height: 1.5),
+                      fontSize: 12, color: AppTheme.sub, height: 1.5),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           // 画像
           Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
@@ -759,21 +759,21 @@ class _EvalScreenState extends State<EvalScreen> {
                 [];
             if (tagsList.isEmpty) return const SizedBox(height: 48);
             return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
               child: Wrap(
-                spacing: 7,
-                runSpacing: 7,
+                spacing: 6,
+                runSpacing: 6,
                 children: tagsList
                     .map((tag) => Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 13, vertical: 6),
+                              horizontal: 11, vertical: 5),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF3F3F3),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(tag,
                               style: AppTheme.getNotoSansJP(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: const Color(0xFF555555))),
                         ))
@@ -785,7 +785,7 @@ class _EvalScreenState extends State<EvalScreen> {
           // 統計（常にカード最下部）
           Padding(
             padding: const EdgeInsets.only(
-                left: 16, right: 16, top: 8, bottom: 16),
+                left: 14, right: 14, top: 8, bottom: 14),
             child: Row(
               children: [
                 const Icon(Icons.favorite_border,
