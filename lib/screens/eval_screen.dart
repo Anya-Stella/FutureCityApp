@@ -701,9 +701,10 @@ class _EvalScreenState extends State<EvalScreen> {
           ),
           const SizedBox(height: 12),
           // 画像
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: SizedBox(
+                height: 200,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Stack(
@@ -748,7 +749,7 @@ class _EvalScreenState extends State<EvalScreen> {
               ),
             ),
           ),
-          // タグ
+          // タグ（ない場合も固定スペース確保）
           () {
             final ptList = post['post_tags'] as List?;
             final tagsList = ptList
@@ -756,9 +757,9 @@ class _EvalScreenState extends State<EvalScreen> {
                     .whereType<String>()
                     .toList() ??
                 [];
-            if (tagsList.isEmpty) return const SizedBox.shrink();
+            if (tagsList.isEmpty) return const SizedBox(height: 48);
             return Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Wrap(
                 spacing: 7,
                 runSpacing: 7,
@@ -780,10 +781,11 @@ class _EvalScreenState extends State<EvalScreen> {
               ),
             );
           }(),
-          // 統計
+          const Spacer(),
+          // 統計（常にカード最下部）
           Padding(
             padding: const EdgeInsets.only(
-                left: 16, right: 16, top: 12, bottom: 16),
+                left: 16, right: 16, top: 8, bottom: 16),
             child: Row(
               children: [
                 const Icon(Icons.favorite_border,
