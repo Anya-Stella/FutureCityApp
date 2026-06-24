@@ -264,58 +264,28 @@ function extractFreePrompt(rawPrompt: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Main handler
+// Background job processor (runs after HTTP response is sent)
 // ---------------------------------------------------------------------------
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
-  }
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "method_not_allowed" }, 405);
-  }
-
-  // Env
-  const openaiApiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const imageModel = (Deno.env.get("OPENAI_IMAGE_MODEL") ?? "").trim() ||
-    "gpt-image-2";
-  const promptModel = (Deno.env.get("OPENAI_PROMPT_MODEL") ?? "").trim() ||
-    "gpt-4o-mini";
-  const requestStartMs = nowMs();
-
-  if (!openaiApiKey || !supabaseUrl || !serviceRoleKey) {
-    return jsonResponse({ error: "server_misconfigured" }, 500);
-  }
-
-  // Parse body
-  let jobId: string | undefined;
-  try {
-    const body = await req.json();
-    jobId = body?.job_id;
-  } catch (_e) {
-    return jsonResponse({ error: "invalid_json_body" }, 400);
-  }
-  if (!jobId || typeof jobId !== "string") {
-    return jsonResponse({ error: "missing_job_id" }, 400);
-  }
+async function runJob(opts: {
+  jobId: string;
+  userId: string;
+  job: Record<string, unknown>;
+  openaiApiKey: string;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  imageModel: string;
+  promptModel: string;
+  requestStartMs: number;
+}) {
+  const {
+    jobId, userId, job, openaiApiKey, supabaseUrl,
+    serviceRoleKey, imageModel, promptModel, requestStartMs,
+  } = opts;
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
 
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!jwt) {
-    return jsonResponse({ error: "missing_authorization" }, 401);
-  }
-
-  const { data: authData, error: authErr } = await supabase.auth.getUser(jwt);
-  if (authErr || !authData.user) {
-    return jsonResponse({ error: "invalid_authorization" }, 401);
-  }
-
-  // Helper to mark a job as failed.
   const markFailed = async (message: string) => {
     await supabase
       .from("ai_generation_jobs")
@@ -325,56 +295,17 @@ Deno.serve(async (req: Request) => {
         completed_at: new Date().toISOString(),
       })
       .eq("id", jobId)
-      .eq("user_id", authData.user.id)
+      .eq("user_id", userId)
       .eq("status", "running");
   };
 
   try {
-    // 1. Fetch + validate job
-    const { data: job, error: jobErr } = await supabase
-      .from("ai_generation_jobs")
-      .select(
-        "id, user_id, project_id, input_image_url, selected_tag_ids, prompt, status",
-      )
-      .eq("id", jobId)
-      .single();
-
-    if (jobErr || !job) {
-      return jsonResponse({ error: "job_not_found", job_id: jobId }, 404);
-    }
-
-    if (job.user_id !== authData.user.id) {
-      return jsonResponse({ error: "forbidden", job_id: jobId }, 403);
-    }
-
-    if (job.status !== "queued") {
-      return jsonResponse({
-        error: "job_not_queued",
-        job_id: jobId,
-        status: job.status,
-      }, 409);
-    }
-
-    // 2. Atomically claim a queued job to avoid double execution / overwrite.
-    const { data: claimedJob, error: claimErr } = await supabase
-      .from("ai_generation_jobs")
-      .update({ status: "running" })
-      .eq("id", jobId)
-      .eq("user_id", authData.user.id)
-      .eq("status", "queued")
-      .select("id")
-      .single();
-    if (claimErr || !claimedJob) {
-      return jsonResponse({ error: "job_already_claimed", job_id: jobId }, 409);
-    }
-
-    const userId: string = job.user_id;
     const selectedTagIds: string[] = Array.isArray(job.selected_tag_ids)
-      ? job.selected_tag_ids
+      ? job.selected_tag_ids as string[]
       : [];
     const userPrompt: string = extractFreePrompt((job.prompt ?? "").toString());
 
-    // 3. Resolve tag titles (supporting structured elements)
+    // 3. Resolve tag titles
     let tagTitles: string[] = [];
     if (selectedTagIds.length > 0) {
       const { data: tagRows, error: tagErr } = await supabase
@@ -421,8 +352,8 @@ Deno.serve(async (req: Request) => {
       final_prompt: finalPrompt,
     });
 
-    // 5. Normalize + fetch source image (Images EDIT requires a source image)
-    const sourceUrl = normalizeInputImageUrl(job.input_image_url);
+    // 5. Normalize + fetch source image
+    const sourceUrl = normalizeInputImageUrl(job.input_image_url as string);
     const srcResp = await fetchValidatedImage(sourceUrl, supabaseUrl);
     if (!srcResp.ok) {
       throw new Error(`failed to fetch source image (${srcResp.status})`);
@@ -442,9 +373,7 @@ Deno.serve(async (req: Request) => {
       : "png";
     const srcBlob = new Blob([srcBytes], { type: srcContentType });
 
-    // 6. Call OpenAI Images EDIT (multipart/form-data) — NOT text-to-image.
-    //    GPT image models return b64_json; response_format is NOT supported,
-    //    so we never set it. Keep high quality for photorealistic output.
+    // 6. Call OpenAI Images EDIT
     const form = new FormData();
     form.append("model", imageModel);
     form.append("prompt", finalPrompt);
@@ -493,7 +422,7 @@ Deno.serve(async (req: Request) => {
       pngBytes[i] = binary.charCodeAt(i);
     }
 
-    // 8. Upload to Storage bucket: <user_id>/<job_id>.png
+    // 8. Upload to Storage
     const objectPath = `${userId}/${jobId}.png`;
     const uploadStartMs = nowMs();
     logEvent("storage_upload_started", {
@@ -525,10 +454,7 @@ Deno.serve(async (req: Request) => {
 
     // 9. Mark succeeded
     const jobUpdateStartMs = nowMs();
-    logEvent("job_update_started", {
-      job_id: jobId,
-      target_status: "succeeded",
-    });
+    logEvent("job_update_started", { job_id: jobId, target_status: "succeeded" });
     const { data: updatedJob, error: updateErr } = await supabase
       .from("ai_generation_jobs")
       .update({
@@ -538,7 +464,7 @@ Deno.serve(async (req: Request) => {
         completed_at: new Date().toISOString(),
       })
       .eq("id", jobId)
-      .eq("user_id", authData.user.id)
+      .eq("user_id", userId)
       .eq("status", "running")
       .select("id, status, output_image_url")
       .single();
@@ -559,14 +485,6 @@ Deno.serve(async (req: Request) => {
       duration_ms: elapsedMs(requestStartMs),
       output_image_url: outputImageUrl,
     });
-
-    return jsonResponse({
-      ok: true,
-      job_id: jobId,
-      status: "succeeded",
-      output_image_url: outputImageUrl,
-      model: imageModel,
-    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     logEvent("ai_generation_job_failed", {
@@ -575,6 +493,109 @@ Deno.serve(async (req: Request) => {
       error_message: message.slice(0, 1000),
     });
     await markFailed(message);
-    return jsonResponse({ ok: false, job_id: jobId, status: "failed" }, 200);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "method_not_allowed" }, 405);
+  }
+
+  // Env
+  const openaiApiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const imageModel = (Deno.env.get("OPENAI_IMAGE_MODEL") ?? "").trim() ||
+    "gpt-image-1";
+  const promptModel = (Deno.env.get("OPENAI_PROMPT_MODEL") ?? "").trim() ||
+    "gpt-4o-mini";
+  const requestStartMs = nowMs();
+
+  if (!openaiApiKey || !supabaseUrl || !serviceRoleKey) {
+    return jsonResponse({ error: "server_misconfigured" }, 500);
+  }
+
+  // Parse body
+  let jobId: string | undefined;
+  try {
+    const body = await req.json();
+    jobId = body?.job_id;
+  } catch (_e) {
+    return jsonResponse({ error: "invalid_json_body" }, 400);
+  }
+  if (!jobId || typeof jobId !== "string") {
+    return jsonResponse({ error: "missing_job_id" }, 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!jwt) {
+    return jsonResponse({ error: "missing_authorization" }, 401);
+  }
+
+  const { data: authData, error: authErr } = await supabase.auth.getUser(jwt);
+  if (authErr || !authData.user) {
+    return jsonResponse({ error: "invalid_authorization" }, 401);
+  }
+
+  // 1. Fetch + validate job
+  const { data: job, error: jobErr } = await supabase
+    .from("ai_generation_jobs")
+    .select(
+      "id, user_id, project_id, input_image_url, selected_tag_ids, prompt, status",
+    )
+    .eq("id", jobId)
+    .single();
+
+  if (jobErr || !job) {
+    return jsonResponse({ error: "job_not_found", job_id: jobId }, 404);
+  }
+  if (job.user_id !== authData.user.id) {
+    return jsonResponse({ error: "forbidden", job_id: jobId }, 403);
+  }
+  if (job.status !== "queued") {
+    return jsonResponse({
+      error: "job_not_queued",
+      job_id: jobId,
+      status: job.status,
+    }, 409);
+  }
+
+  // 2. Atomically claim the job
+  const { data: claimedJob, error: claimErr } = await supabase
+    .from("ai_generation_jobs")
+    .update({ status: "running" })
+    .eq("id", jobId)
+    .eq("user_id", authData.user.id)
+    .eq("status", "queued")
+    .select("id")
+    .single();
+  if (claimErr || !claimedJob) {
+    return jsonResponse({ error: "job_already_claimed", job_id: jobId }, 409);
+  }
+
+  // 3〜9. 長時間処理はバックグラウンドで実行し、接続を即座に解放する
+  EdgeRuntime.waitUntil(runJob({
+    jobId,
+    userId: authData.user.id,
+    job,
+    openaiApiKey,
+    supabaseUrl,
+    serviceRoleKey,
+    imageModel,
+    promptModel,
+    requestStartMs,
+  }));
+
+  return jsonResponse({ ok: true, job_id: jobId, status: "accepted" }, 200);
 });
