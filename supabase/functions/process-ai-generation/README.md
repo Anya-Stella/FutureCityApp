@@ -13,21 +13,24 @@ OpenAI work **server-side** — Flutter never calls OpenAI directly.
 5. Reads `input_image_url`, `prompt`, `selected_tag_ids`, `user_id`, `project_id`.
 6. Resolves tag titles from the `tags` table for `selected_tag_ids` (used as
    supporting structured elements).
-7. Extracts the free prompt from the raw job prompt and synthesizes a concise,
-   visual English image-edit prompt server-side using an
-   OpenAI chat model. Weighting is treated as **design priority, not a numeric
-   formula**:
+7. Extracts the free prompt from the raw job prompt and synthesizes a
+   photorealistic English image-edit prompt server-side using an OpenAI chat
+   model. Weighting is treated as **design priority, not a numeric formula**:
    - user free prompt → most important (~60)
    - selected tags → supporting elements (~30)
    - fixed place context → low-priority background framing (~10)
+   The prompt synthesis strongly asks for real-world photo realism, preservation
+   of camera angle / perspective / street geometry, plausible urban changes, and
+   avoidance of illustration, anime, watercolor, CGI-render, matte-painting, or
+   other stylized output.
 8. Normalizes and validates the source image URL (https only, allowed hosts,
    manual redirect validation before following, supported image content type,
    size cap) and fetches it.
 9. Calls the OpenAI **Images edit** endpoint (`/v1/images/edits`,
    `multipart/form-data`) with the source image file + prompt. This is an
    image-to-image edit, **not** text-to-image.
-   - `size=1024x1024`, `output_format=png`, `quality=low` (low chosen for MVP
-     cost/latency).
+   - `size=1536x1024`, `output_format=png`, `quality=high` for higher-fidelity
+     photorealistic edits.
    - `response_format` is **never** sent — GPT image models don't support it and
      return base64 image data.
 10. Decodes `data[0].b64_json` into PNG bytes.
@@ -97,6 +100,31 @@ Flutter: polls getAIGenerationJob(jobId) → shows output_image_url on succeeded
   existing fallback image path, so the UI never hangs.
 - Prompt synthesis has its own deterministic fallback prompt if the chat model
   call fails, so a prompt-model hiccup does not fail the whole job.
+
+## Developer logs
+
+The function emits structured JSON logs to Supabase Edge Function logs. They are
+for developers only and are not shown in the Flutter UI. The logs intentionally
+must not include `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `Authorization`,
+JWTs, or other secret headers.
+
+Useful event names:
+
+- `ai_generation_job_started`: job metadata and image parameters.
+- `prompt_synthesis_started`: prompt synthesis started.
+- `prompt_synthesis_finished`: includes `duration_ms`, `final_prompt_length`,
+  and `final_prompt` actually passed to Images edit.
+- `prompt_synthesis_failed_using_fallback`: prompt-model failure; deterministic
+  fallback prompt will still be used.
+- `image_edit_api_started`: model, size, quality, output format, and source image
+  metadata.
+- `image_edit_api_finished`: `duration_ms`, HTTP status, and success flag.
+- `storage_upload_started` / `storage_upload_finished`: upload bytes and timing.
+- `job_update_started` / `job_update_finished`: DB status update timing.
+- `ai_generation_job_succeeded`: total processing time and generated public URL.
+- `ai_generation_job_failed`: total processing time and bounded error message.
+
+View them in Supabase Dashboard > Edge Functions > `process-ai-generation` > Logs.
 
 ## Responses
 

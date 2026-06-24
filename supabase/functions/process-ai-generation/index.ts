@@ -56,6 +56,21 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function nowMs(): number {
+  return performance.now();
+}
+
+function elapsedMs(startMs: number): number {
+  return Math.round(performance.now() - startMs);
+}
+
+function logEvent(event: string, fields: Record<string, unknown> = {}) {
+  // Developer-only structured logs for Supabase Edge Function logs.
+  // Never include OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, Authorization,
+  // JWTs, or other secret headers in this payload.
+  console.log(JSON.stringify({ event, ...fields }));
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -75,32 +90,35 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
 async function synthesizePrompt(opts: {
   apiKey: string;
   model: string;
+  jobId: string;
   userPrompt: string;
   tagTitles: string[];
 }): Promise<string> {
-  const { apiKey, model, userPrompt, tagTitles } = opts;
+  const { apiKey, model, jobId, userPrompt, tagTitles } = opts;
 
   const tagsText = tagTitles.length > 0 ? tagTitles.join(", ") : "(none)";
   const userText = userPrompt.trim().length > 0 ? userPrompt.trim() : "(none)";
 
   const systemInstruction = [
-    "You write a single, concise, vivid English image-editing prompt that",
-    "transforms a photo of a real Japanese street near the Imperial Palace into",
-    "a hopeful, realistic near-future version of the same place.",
+    "You write a single vivid English image-editing prompt.",
+    "Transform a real photo of a Japanese street near the Imperial Palace into a realistic, plausible near-future version of the same place.",
     "",
     "Priority of inputs (design priority, not a formula):",
-    "1. USER REQUEST is the most important driver of the result.",
-    "2. SELECTED TAGS are supporting structured elements to weave in.",
-    "3. PLACE CONTEXT is only low-priority background framing.",
+    "1. USER REQUEST is highest priority and should drive the visible changes.",
+    "2. SELECTED TAGS are supporting structured elements to weave in naturally.",
+    "3. PLACE CONTEXT is background framing only; do not let it dominate the image.",
     "",
     `Fixed location: ${FIXED_LOCATION}.`,
     `Place context / direction: ${PLACE_CONTEXT_DIRECTION}.`,
     "",
-    "Rules: keep the original scene's geometry and viewpoint; produce one",
-    "paragraph, under ~80 words, purely visual description, no lists, no",
-    "preamble, no quotes. Output only the prompt text.",
+    "Edit constraints:",
+    "Preserve the original camera angle, perspective, lens feel, vanishing point, street geometry, sidewalk-road relationship, major building positions, street tree placement, and the overall recognizable location.",
+    "Add only realistic urban interventions derived from the USER REQUEST and SELECTED TAGS. Keep the place clearly recognizable as the same location.",
+    "The result must look like a genuine high-resolution real-world photograph, not an illustration, anime, painting, watercolor, concept art, CGI render, matte painting, 3D render, fantasy scene, or stylized artwork.",
+    "Use natural lighting, realistic materials, plausible planting and street furniture, correct human scale, believable urban design details, restrained colors, and real-world construction logic.",
+    "Avoid glowing fantasy elements, impossible architecture, exaggerated colors, painterly textures, labels, icons, signs with readable text, UI elements, and anything that makes the image feel synthetic.",
     "",
-    "The output image must look like a realistic photo or high-quality architectural visualization, not an illustration, anime, watercolor, concept sketch, or cartoon. Preserve the original camera angle, perspective, street geometry, building positions, and realistic lighting. Do not add text, labels, icons, or UI elements inside the image.",
+    "Output only one concise paragraph of visual editing instructions in English, with no preamble, no quotes, and no bullet list. Be specific enough for photorealistic image editing, but do not write a long essay.",
   ].join("\n");
 
   const userMessage = [
@@ -121,8 +139,8 @@ async function synthesizePrompt(opts: {
           { role: "system", content: systemInstruction },
           { role: "user", content: userMessage },
         ],
-        temperature: 0.7,
-        max_tokens: 220,
+        temperature: 0.45,
+        max_tokens: 320,
       }),
     });
 
@@ -135,16 +153,21 @@ async function synthesizePrompt(opts: {
     const text = data?.choices?.[0]?.message?.content?.trim();
     if (text && text.length > 0) return text;
   } catch (e) {
-    console.error("Prompt synthesis failed, using deterministic fallback:", e);
+    const message = e instanceof Error ? e.message : String(e);
+    logEvent("prompt_synthesis_failed_using_fallback", {
+      job_id: jobId,
+      error_message: message.slice(0, 1000),
+    });
   }
 
   // Deterministic fallback prompt keeps the same priority ordering.
   return [
-    `Transform this ${FIXED_LOCATION} street scene into a hopeful near-future version.`,
+    `Edit this real-world photo of a Japanese street near ${FIXED_LOCATION} into a plausible near-future version of the same location.`,
     userText !== "(none)" ? `Focus on the request: ${userText}.` : "",
     tagsText !== "(none)" ? `Incorporate: ${tagsText}.` : "",
-    `Keep ${PLACE_CONTEXT_DIRECTION}.`,
-    "Preserve original viewpoint and layout. Photorealistic.",
+    `Use the place context only as subtle background framing: ${PLACE_CONTEXT_DIRECTION}.`,
+    "Preserve the original camera angle, perspective, lens feel, vanishing point, street geometry, sidewalk-road relationship, building positions, street tree placement, realistic materials, scale, and natural lighting.",
+    "The output must look like a genuine high-resolution real-world photograph, not illustration, anime, watercolor, concept art, CGI render, matte painting, fantasy glow, or stylized artwork. Add only plausible urban improvements and keep the location recognizable.",
   ]
     .filter((s) => s.length > 0)
     .join(" ");
@@ -259,6 +282,7 @@ Deno.serve(async (req: Request) => {
     "gpt-image-2";
   const promptModel = (Deno.env.get("OPENAI_PROMPT_MODEL") ?? "").trim() ||
     "gpt-4o-mini";
+  const requestStartMs = nowMs();
 
   if (!openaiApiKey || !supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ error: "server_misconfigured" }, 500);
@@ -366,12 +390,35 @@ Deno.serve(async (req: Request) => {
       throw new Error("tag or free prompt is required");
     }
 
+    logEvent("ai_generation_job_started", {
+      job_id: jobId,
+      project_id: job.project_id,
+      user_id: userId,
+      image_model: imageModel,
+      prompt_model: promptModel,
+      image_size: "1536x1024",
+      image_quality: "high",
+      output_format: "png",
+      selected_tag_count: selectedTagIds.length,
+      resolved_tag_count: tagTitles.length,
+      has_user_prompt: userPrompt.length > 0,
+    });
+
     // 4. Synthesize final image prompt server-side
+    const promptStartMs = nowMs();
+    logEvent("prompt_synthesis_started", { job_id: jobId });
     const finalPrompt = await synthesizePrompt({
       apiKey: openaiApiKey,
       model: promptModel,
+      jobId,
       userPrompt,
       tagTitles,
+    });
+    logEvent("prompt_synthesis_finished", {
+      job_id: jobId,
+      duration_ms: elapsedMs(promptStartMs),
+      final_prompt_length: finalPrompt.length,
+      final_prompt: finalPrompt,
     });
 
     // 5. Normalize + fetch source image (Images EDIT requires a source image)
@@ -397,7 +444,7 @@ Deno.serve(async (req: Request) => {
 
     // 6. Call OpenAI Images EDIT (multipart/form-data) — NOT text-to-image.
     //    GPT image models return b64_json; response_format is NOT supported,
-    //    so we never set it. quality "low" for MVP cost/latency.
+    //    so we never set it. Keep high quality for photorealistic output.
     const form = new FormData();
     form.append("model", imageModel);
     form.append("prompt", finalPrompt);
@@ -406,10 +453,26 @@ Deno.serve(async (req: Request) => {
     form.append("output_format", "png");
     form.append("quality", "high");
 
+    const imageEditStartMs = nowMs();
+    logEvent("image_edit_api_started", {
+      job_id: jobId,
+      model: imageModel,
+      size: "1536x1024",
+      quality: "high",
+      output_format: "png",
+      source_image_content_type: srcContentType,
+      source_image_bytes: srcBytes.byteLength,
+    });
     const editResp = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: { Authorization: `Bearer ${openaiApiKey}` },
       body: form,
+    });
+    logEvent("image_edit_api_finished", {
+      job_id: jobId,
+      duration_ms: elapsedMs(imageEditStartMs),
+      http_status: editResp.status,
+      ok: editResp.ok,
     });
 
     if (!editResp.ok) {
@@ -432,12 +495,25 @@ Deno.serve(async (req: Request) => {
 
     // 8. Upload to Storage bucket: <user_id>/<job_id>.png
     const objectPath = `${userId}/${jobId}.png`;
+    const uploadStartMs = nowMs();
+    logEvent("storage_upload_started", {
+      job_id: jobId,
+      bucket: STORAGE_BUCKET,
+      object_path: objectPath,
+      bytes: pngBytes.byteLength,
+      content_type: "image/png",
+    });
     const { error: uploadErr } = await supabase.storage
       .from(STORAGE_BUCKET)
       .upload(objectPath, pngBytes, {
         contentType: "image/png",
         upsert: true,
       });
+    logEvent("storage_upload_finished", {
+      job_id: jobId,
+      duration_ms: elapsedMs(uploadStartMs),
+      ok: !uploadErr,
+    });
     if (uploadErr) {
       throw new Error(`storage upload failed: ${uploadErr.message}`);
     }
@@ -448,6 +524,11 @@ Deno.serve(async (req: Request) => {
     const outputImageUrl = publicUrlData.publicUrl;
 
     // 9. Mark succeeded
+    const jobUpdateStartMs = nowMs();
+    logEvent("job_update_started", {
+      job_id: jobId,
+      target_status: "succeeded",
+    });
     const { data: updatedJob, error: updateErr } = await supabase
       .from("ai_generation_jobs")
       .update({
@@ -461,12 +542,23 @@ Deno.serve(async (req: Request) => {
       .eq("status", "running")
       .select("id, status, output_image_url")
       .single();
+    logEvent("job_update_finished", {
+      job_id: jobId,
+      duration_ms: elapsedMs(jobUpdateStartMs),
+      ok: !updateErr && updatedJob?.status === "succeeded",
+    });
     if (
       updateErr || !updatedJob || updatedJob.status !== "succeeded" ||
       updatedJob.output_image_url !== outputImageUrl
     ) {
       throw new Error("failed to update ai_generation_jobs with generated image URL");
     }
+
+    logEvent("ai_generation_job_succeeded", {
+      job_id: jobId,
+      duration_ms: elapsedMs(requestStartMs),
+      output_image_url: outputImageUrl,
+    });
 
     return jsonResponse({
       ok: true,
@@ -477,7 +569,11 @@ Deno.serve(async (req: Request) => {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("process-ai-generation failed:", message);
+    logEvent("ai_generation_job_failed", {
+      job_id: jobId,
+      duration_ms: elapsedMs(requestStartMs),
+      error_message: message.slice(0, 1000),
+    });
     await markFailed(message);
     return jsonResponse({ ok: false, job_id: jobId, status: "failed" }, 200);
   }
