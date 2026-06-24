@@ -403,7 +403,7 @@ class _CreateScreenState extends State<CreateScreen> {
               ),
               size: const Size(18, 18),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 9),
             Text(label,
                 style: AppTheme.getNotoSansJP(
                     fontSize: 13,
