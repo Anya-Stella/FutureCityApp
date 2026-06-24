@@ -218,6 +218,16 @@ class SupabaseService {
         .single();
   }
 
+  // Invoke the server-side Edge Function that processes a queued job.
+  // The function performs all OpenAI work server-side and writes the result
+  // back into ai_generation_jobs, which the polling loop then picks up.
+  static Future<void> invokeProcessAIGeneration(String jobId) async {
+    await _supabase.functions.invoke(
+      'process-ai-generation',
+      body: {'job_id': jobId},
+    );
+  }
+
   // --- Badges Section ---
   static Future<List<dynamic>> getUserBadges(String userId) async {
     return await _supabase
