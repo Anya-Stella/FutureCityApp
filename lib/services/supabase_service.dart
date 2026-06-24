@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 
 class SupabaseService {
   SupabaseService._();
@@ -193,6 +194,22 @@ class SupabaseService {
   }
 
   // --- AI Generation Section ---
+  // 写真をSupabase Storageにアップロードして公開URLを返す
+  static Future<String> uploadBeforeImage({
+    required String userId,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final ext = mimeType.contains('png') ? 'png' : 'jpg';
+    final path = 'uploads/$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await _supabase.storage.from('ai-generations').uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: mimeType, upsert: true),
+    );
+    return _supabase.storage.from('ai-generations').getPublicUrl(path);
+  }
+
   static Future<Map<String, dynamic>> insertAIGenerationJob({
     required String userId,
     required String? projectId,
@@ -216,6 +233,16 @@ class SupabaseService {
         .select('*')
         .eq('id', jobId)
         .single();
+  }
+
+  // Invoke the server-side Edge Function that processes a queued job.
+  // The function performs all OpenAI work server-side and writes the result
+  // back into ai_generation_jobs, which the polling loop then picks up.
+  static Future<void> invokeProcessAIGeneration(String jobId) async {
+    await _supabase.functions.invoke(
+      'process-ai-generation',
+      body: {'job_id': jobId},
+    );
   }
 
   // --- Badges Section ---
