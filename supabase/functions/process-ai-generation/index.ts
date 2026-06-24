@@ -14,6 +14,8 @@
 //   SUPABASE_SERVICE_ROLE_KEY   - service-role key (bypasses RLS, secret)
 // Optional env vars:
 //   OPENAI_IMAGE_MODEL          - image edit model, default "gpt-image-2"
+//   OPENAI_IMAGE_SIZE           - image size, default "1536x1024"
+//   OPENAI_IMAGE_QUALITY        - image quality, default "medium"
 //   OPENAI_PROMPT_MODEL         - chat model for prompt synthesis, default "gpt-4o-mini"
 //   INPUT_IMAGE_PUBLIC_URL      - public URL used to normalize "assets/..." inputs
 //
@@ -96,9 +98,16 @@ async function synthesizePrompt(opts: {
     `Fixed location: ${FIXED_LOCATION}.`,
     `Place context / direction: ${PLACE_CONTEXT_DIRECTION}.`,
     "",
-    "Rules: keep the original scene's geometry and viewpoint; produce one",
-    "paragraph, under ~80 words, purely visual description, no lists, no",
-    "preamble, no quotes. Output only the prompt text.",
+    "Realism constraints: the output image must look like a realistic photo or",
+    "high-quality architectural visualization, not an illustration, anime,",
+    "watercolor, concept sketch, or cartoon. Preserve the original camera angle,",
+    "perspective, street geometry, building positions, and realistic lighting.",
+    "Do not add text, labels, icons, or UI elements inside the image. Add only",
+    "the requested future improvements while keeping the underlying scene",
+    "recognizable.",
+    "",
+    "Rules: produce one paragraph, under ~90 words, purely visual description,",
+    "no lists, no preamble, no quotes. Output only the prompt text.",
   ].join("\n");
 
   const userMessage = [
@@ -255,6 +264,10 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const imageModel = (Deno.env.get("OPENAI_IMAGE_MODEL") ?? "").trim() ||
     "gpt-image-2";
+  const imageSize = (Deno.env.get("OPENAI_IMAGE_SIZE") ?? "").trim() ||
+    "1536x1024";
+  const imageQuality = (Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "").trim() ||
+    "medium";
   const promptModel = (Deno.env.get("OPENAI_PROMPT_MODEL") ?? "").trim() ||
     "gpt-4o-mini";
 
@@ -395,14 +408,15 @@ Deno.serve(async (req: Request) => {
 
     // 6. Call OpenAI Images EDIT (multipart/form-data) — NOT text-to-image.
     //    GPT image models return b64_json; response_format is NOT supported,
-    //    so we never set it. quality "low" for MVP cost/latency.
+    //    so we never set it. Size / quality default to higher-quality values
+    //    and can be overridden via env vars.
     const form = new FormData();
     form.append("model", imageModel);
     form.append("prompt", finalPrompt);
     form.append("image", srcBlob, `source.${srcExt}`);
-    form.append("size", "1024x1024");
+    form.append("size", imageSize);
     form.append("output_format", "png");
-    form.append("quality", "low");
+    form.append("quality", imageQuality);
 
     const editResp = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",

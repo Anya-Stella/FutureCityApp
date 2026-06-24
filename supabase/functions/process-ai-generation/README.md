@@ -26,8 +26,9 @@ OpenAI work **server-side** — Flutter never calls OpenAI directly.
 9. Calls the OpenAI **Images edit** endpoint (`/v1/images/edits`,
    `multipart/form-data`) with the source image file + prompt. This is an
    image-to-image edit, **not** text-to-image.
-   - `size=1024x1024`, `output_format=png`, `quality=low` (low chosen for MVP
-     cost/latency).
+   - defaults: `size=1536x1024`, `output_format=png`, `quality=medium`.
+     Size and quality can be overridden with `OPENAI_IMAGE_SIZE` and
+     `OPENAI_IMAGE_QUALITY`.
    - `response_format` is **never** sent — GPT image models don't support it and
      return base64 image data.
 10. Decodes `data[0].b64_json` into PNG bytes.
@@ -56,6 +57,8 @@ place context / direction is embedded in the prompt synthesis:
 | `SUPABASE_URL` | yes | — | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | — | Service-role key (bypasses RLS). Secret. |
 | `OPENAI_IMAGE_MODEL` | no | `gpt-image-2` | Images edit model. |
+| `OPENAI_IMAGE_SIZE` | no | `1536x1024` | Images edit output size. |
+| `OPENAI_IMAGE_QUALITY` | no | `medium` | Images edit quality. Set `high` if quality is prioritized over latency/cost. |
 | `OPENAI_PROMPT_MODEL` | no | `gpt-4o-mini` | Chat model for prompt synthesis. |
 | `INPUT_IMAGE_PUBLIC_URL` | no | built-in fallback | Public BEFORE image used when the job stored an `assets/...` path. |
 
