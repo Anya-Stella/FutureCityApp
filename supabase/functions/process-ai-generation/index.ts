@@ -15,7 +15,7 @@
 // Optional env vars:
 //   OPENAI_IMAGE_MODEL          - image edit model, default "gpt-image-2"
 //   OPENAI_IMAGE_SIZE           - image size, default "1536x1024"
-//   OPENAI_IMAGE_QUALITY        - image quality, default "medium"
+//   OPENAI_IMAGE_QUALITY        - image quality, default "high"
 //   OPENAI_PROMPT_MODEL         - chat model for prompt synthesis, default "gpt-4o-mini"
 //   INPUT_IMAGE_PUBLIC_URL      - public URL used to normalize "assets/..." inputs
 //
@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
   const imageSize = (Deno.env.get("OPENAI_IMAGE_SIZE") ?? "").trim() ||
     "1536x1024";
   const imageQuality = (Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "").trim() ||
-    "medium";
+    "high";
   const promptModel = (Deno.env.get("OPENAI_PROMPT_MODEL") ?? "").trim() ||
     "gpt-4o-mini";
 

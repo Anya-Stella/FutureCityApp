@@ -21,7 +21,7 @@ OpenAI **Images edit** endpoint with the source image,
 decodes the returned `b64_json`, uploads the PNG to the `ai-generations` Storage
 bucket, and writes `output_image_url` + `status=succeeded` (or `failed`) back to
 `ai_generation_jobs`. Location fixed to 皇居. Image edit defaults are now
-`size=1536x1024` and `quality=medium`, overridable via `OPENAI_IMAGE_SIZE` /
+`size=1536x1024` and `quality=high`, overridable via `OPENAI_IMAGE_SIZE` /
 `OPENAI_IMAGE_QUALITY`. Prompt synthesis explicitly asks for realistic photo /
 high-quality architectural visualization output and forbids illustration,
 anime, watercolor, concept sketch, cartoon, labels, text, icons, and UI elements.
