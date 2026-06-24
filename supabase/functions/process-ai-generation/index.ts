@@ -99,6 +99,8 @@ async function synthesizePrompt(opts: {
     "Rules: keep the original scene's geometry and viewpoint; produce one",
     "paragraph, under ~80 words, purely visual description, no lists, no",
     "preamble, no quotes. Output only the prompt text.",
+    "",
+    "The output image must look like a realistic photo or high-quality architectural visualization, not an illustration, anime, watercolor, concept sketch, or cartoon. Preserve the original camera angle, perspective, street geometry, building positions, and realistic lighting. Do not add text, labels, icons, or UI elements inside the image.",
   ].join("\n");
 
   const userMessage = [
@@ -400,9 +402,9 @@ Deno.serve(async (req: Request) => {
     form.append("model", imageModel);
     form.append("prompt", finalPrompt);
     form.append("image", srcBlob, `source.${srcExt}`);
-    form.append("size", "1024x1024");
+    form.append("size", "1536x1024");
     form.append("output_format", "png");
-    form.append("quality", "low");
+    form.append("quality", "high");
 
     const editResp = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",

@@ -141,7 +141,8 @@ class _CreateScreenState extends State<CreateScreen> {
       // Find tag IDs
       final List<String> selectedTagIds = [];
       for (final title in _selectedTags) {
-        final dbTag = _dbTags.firstWhere((t) => t['title'] == title, orElse: () => null);
+        final dbTagIndex = _dbTags.indexWhere((t) => t['title'] == title);
+        final dbTag = dbTagIndex >= 0 ? _dbTags[dbTagIndex] : null;
         if (dbTag != null) {
           selectedTagIds.add(dbTag['id'] as String);
         } else if (_fallbackTagIds.containsKey(title)) {
