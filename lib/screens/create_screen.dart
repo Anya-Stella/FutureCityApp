@@ -249,7 +249,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   Future<void> _submitPost() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedPresetUrl == null || _generatedImageUrl == null) {
+    if ((_selectedPresetUrl == null && _uploadedBeforeUrl == null) || _generatedImageUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('画像生成が完了していません')),
       );
@@ -288,10 +288,8 @@ class _CreateScreenState extends State<CreateScreen> {
       // 3. Insert post tags relation
       final List<String> tagIdsToInsert = [];
       for (final title in _selectedTags) {
-        final dbTag = _dbTags.firstWhere(
-          (t) => t['title'] == title,
-          orElse: () => null,
-        );
+        final dbTagIndex = _dbTags.indexWhere((t) => t['title'] == title);
+        final dbTag = dbTagIndex >= 0 ? _dbTags[dbTagIndex] : null;
         if (dbTag != null) {
           tagIdsToInsert.add(dbTag['id'] as String);
         } else if (_fallbackTagIds.containsKey(title)) {
