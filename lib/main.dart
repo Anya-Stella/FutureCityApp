@@ -129,6 +129,10 @@ class _MainLayoutState extends State<MainLayout> {
   void _onNavigationTapped(int index) {
     setState(() {
       _currentIndex = index;
+      // 評価タブに切り替えるたびに再生成して最新データを取得
+      if (index == 1) {
+        _screens[1] = EvalScreen(key: UniqueKey(), onBack: () => _onNavigationTapped(0));
+      }
     });
     // Toggle mock status bar color: white text on Eval screen (index 1), dark text on others
     DesktopDeviceWrapper.useLightStatusBar.value = (index == 1);
