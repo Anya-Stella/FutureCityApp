@@ -930,7 +930,7 @@ class _EvalScreenState extends State<EvalScreen> {
   }
 }
 
-// ── Before/After スライダー ──────────────────────────────────────
+// ── Before/After トグル ──────────────────────────────────────────
 class _BeforeAfterSlider extends StatefulWidget {
   final String beforeUrl;
   final String afterUrl;
@@ -941,104 +941,73 @@ class _BeforeAfterSlider extends StatefulWidget {
 }
 
 class _BeforeAfterSliderState extends State<_BeforeAfterSlider> {
-  double _pos = 0.5; // 0.0=全てafter, 1.0=全てbefore
+  bool _showBefore = false;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final h = constraints.maxHeight;
-        final divY = (h * _pos).clamp(20.0, h - 20.0);
-
-        return GestureDetector(
-          onPanUpdate: (d) => setState(() {
-            _pos = (_pos + d.delta.dy / h).clamp(0.05, 0.95);
-          }),
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              // After（背面・全体）
-              Positioned.fill(
-                child: Image.network(widget.afterUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        Container(color: const Color(0xFFE0E0E0))),
-              ),
-              // Before（上部クリップ）
-              ClipRect(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  heightFactor: _pos,
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    height: h,
-                    child: Image.network(widget.beforeUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Container(color: const Color(0xFFCCCCCC))),
-                  ),
-                ),
-              ),
-              // ラベル: 現在の街並み
-              Positioned(
-                top: 10, left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('現在の街並み',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              // ラベル: 未来の景観イメージ
-              Positioned(
-                bottom: 10, left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('未来の景観イメージ',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              // 分割ライン
-              Positioned(
-                top: divY - 1,
-                left: 0, right: 0,
-                child: Container(
-                  height: 1.5,
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
-              // ハンドル
-              Positioned(
-                top: divY - 18,
-                left: constraints.maxWidth / 2 - 18,
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2)),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.unfold_more,
-                      size: 18, color: Color(0xFF444444)),
-                ),
-              ),
-            ],
+    final displayUrl = _showBefore ? widget.beforeUrl : widget.afterUrl;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // メイン画像
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          child: Image.network(
+            displayUrl,
+            key: ValueKey(displayUrl),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xFFE0E0E0)),
           ),
-        );
-      },
+        ),
+        // ラベル（左下）
+        Positioned(
+          bottom: 10, left: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.45),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              _showBefore ? '現在の街並み' : '未来の景観イメージ',
+              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        // BEFORE/AFTER トグルボタン（右下）
+        Positioned(
+          bottom: 10, right: 10,
+          child: GestureDetector(
+            onTap: () => setState(() => _showBefore = !_showBefore),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showBefore ? Icons.arrow_forward_ios : Icons.arrow_back_ios,
+                    color: Colors.white, size: 9,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _showBefore ? 'AFTER' : 'BEFORE',
+                    style: const TextStyle(
+                      color: Colors.white, fontSize: 10,
+                      fontWeight: FontWeight.w700, letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
