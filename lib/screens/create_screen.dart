@@ -395,17 +395,13 @@ class _CreateScreenState extends State<CreateScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                  color: Colors.white, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text('$num',
-                  style: TextStyle(
-                      color: AppTheme.teal,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800)),
+            CustomPaint(
+              painter: _CircleNumberPainter(
+                number: '$num',
+                circleColor: Colors.white,
+                textColor: AppTheme.teal,
+              ),
+              size: const Size(18, 18),
             ),
             const SizedBox(width: 6),
             Text(label,
@@ -419,20 +415,15 @@ class _CreateScreenState extends State<CreateScreen> {
     }
     return Row(
       children: [
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            color: isDone ? AppTheme.teal.withOpacity(0.12) : Colors.transparent,
-            border: Border.all(color: AppTheme.sub.withOpacity(0.3)),
-            shape: BoxShape.circle,
+        CustomPaint(
+          painter: _CircleNumberPainter(
+            number: '$num',
+            circleColor: isDone ? AppTheme.teal.withOpacity(0.12) : Colors.transparent,
+            textColor: isDone ? AppTheme.teal : AppTheme.sub.withOpacity(0.55),
+            hasBorder: true,
+            borderColor: AppTheme.sub.withOpacity(0.3),
           ),
-          alignment: Alignment.center,
-          child: Text('$num',
-              style: TextStyle(
-                  color: isDone ? AppTheme.teal : AppTheme.sub.withOpacity(0.55),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700)),
+          size: const Size(18, 18),
         ),
         const SizedBox(width: 5),
         Text(label,
@@ -1036,4 +1027,61 @@ class _CreateScreenState extends State<CreateScreen> {
       ),
     );
   }
+}
+
+class _CircleNumberPainter extends CustomPainter {
+  final String number;
+  final Color circleColor;
+  final Color textColor;
+  final bool hasBorder;
+  final Color? borderColor;
+
+  const _CircleNumberPainter({
+    required this.number,
+    required this.circleColor,
+    required this.textColor,
+    this.hasBorder = false,
+    this.borderColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    final circlePaint = Paint()..color = circleColor;
+    canvas.drawCircle(center, radius, circlePaint);
+
+    if (hasBorder && borderColor != null) {
+      final borderPaint = Paint()
+        ..color = borderColor!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawCircle(center, radius - 0.5, borderPaint);
+    }
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: number,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          height: 1.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(
+      canvas,
+      Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleNumberPainter old) =>
+      old.number != number ||
+      old.circleColor != circleColor ||
+      old.textColor != textColor;
 }
