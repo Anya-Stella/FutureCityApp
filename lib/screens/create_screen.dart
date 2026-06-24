@@ -44,21 +44,16 @@ class _CreateScreenState extends State<CreateScreen> {
   String? _selectedPresetUrl;
 
   // Tags list
-  final List<String> _fallbackTags = ['緑化', 'ベンチ', '歩道拡幅', '日陰', '自転車レーン', 'バリアフリー'];
+  final List<String> _fallbackTags = [
+    '歩きにくい・危ない', '緑や自然が少ない', '休む場所がない',
+    '暗い・治安が不安', 'にぎわいがない', '子ども・高齢者に不便',
+    '人にやさしい街', '緑あふれる街', '安心・安全な街',
+    'にぎわいのある街', '子どもが育つ街', '移動しやすい街',
+  ];
   List<dynamic> _dbTags = [];
-  final Set<String> _selectedTags = {'緑化', 'ベンチ', '歩道拡幅', '日陰', '自転車レーン'};
+  final Set<String> _selectedTags = {};
 
-  static const Map<String, String> _fallbackTagIds = {
-    '緑化': 'a0000000-0000-0000-0000-000000000001',
-    'ベンチ': 'a0000000-0000-0000-0000-000000000002',
-    '歩道拡幅': 'a0000000-0000-0000-0000-000000000003',
-    '日陰': 'a0000000-0000-0000-0000-000000000004',
-    '自転車レーン': 'a0000000-0000-0000-0000-000000000005',
-    '交通抑制': 'a0000000-0000-0000-0000-000000000006',
-    '照明': 'a0000000-0000-0000-0000-000000000007',
-    'バリアフリー': 'a0000000-0000-0000-0000-000000000008',
-    'アート': 'a0000000-0000-0000-0000-000000000002',
-  };
+  static const Map<String, String> _fallbackTagIds = {};
 
   List<String> get _displayTags => _dbTags.isNotEmpty
       ? _dbTags.map((t) => t['title'] as String).toList()
