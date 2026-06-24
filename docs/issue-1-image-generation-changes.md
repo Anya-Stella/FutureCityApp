@@ -15,12 +15,16 @@ timeout). OpenAI is **only** called server-side from the Edge Function.
 ### `supabase/functions/process-ai-generation/index.ts`
 The Edge Function (Deno). Accepts `{ job_id }`, validates the job, marks it
 `running` after authenticated ownership and queued-state checks, resolves tags,
-extracts the free prompt from the raw job prompt, synthesizes a weighted prompt
-with an OpenAI chat model, validates/fetches the source image URL, calls the
-OpenAI **Images edit** endpoint with the source image,
+extracts the free prompt from the raw job prompt, synthesizes a weighted
+photorealistic image-edit prompt with an OpenAI chat model, validates/fetches
+the source image URL, calls the OpenAI **Images edit** endpoint with the source image,
 decodes the returned `b64_json`, uploads the PNG to the `ai-generations` Storage
 bucket, and writes `output_image_url` + `status=succeeded` (or `failed`) back to
 `ai_generation_jobs`. Location fixed to 皇居. CORS handled for Flutter web.
+Current image edit parameters are `size=1536x1024`, `quality=high`, and
+`output_format=png`. Developer-only structured logs expose the final prompt and
+phase timings in Supabase Edge Function logs without logging API keys, service
+role keys, Authorization headers, or JWTs.
 See `supabase/functions/process-ai-generation/README.md` for full details.
 
 ### `supabase/functions/process-ai-generation/README.md`
