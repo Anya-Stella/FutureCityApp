@@ -34,7 +34,8 @@ class _EvalScreenState extends State<EvalScreen> {
     if (uid == null) return;
 
     try {
-      final filtered = await SupabaseService.getUnevaluatedPosts(uid);
+      // TODO: 本番では getUnevaluatedPosts(uid) に戻す
+      final filtered = await SupabaseService.getPublishedPosts();
       if (mounted) {
         setState(() {
           _unevaluatedPosts = filtered;
@@ -68,32 +69,16 @@ class _EvalScreenState extends State<EvalScreen> {
     final currentSupportRate =
         double.tryParse(metrics?['support_rate']?.toString() ?? '0') ?? 0.0;
 
-    try {
-      await SupabaseService.insertEvaluation(
-        userId: uid,
-        postId: activePost['id'],
-        projectId: activePost['project_id'],
-        action: action,
-        dwellMs: dwellMs,
-        openedDetail: _openedDetail,
-        supportCountAtEvaluation: currentSupportCount,
-        supportRateAtEvaluation: currentSupportRate,
-      );
-      if (mounted) {
-        setState(() {
-          _unevaluatedPosts.removeAt(0);
-          _sessionEvalCount++;
-        });
-        _resetTimer();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('評価の保存に失敗しました: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    // TODO: モック中。本番では insertEvaluation を呼び出す
+    // await SupabaseService.insertEvaluation(...);
+    if (mounted) {
+      setState(() {
+        final post = _unevaluatedPosts.removeAt(0);
+        _unevaluatedPosts.add(post);
+        _sessionEvalCount++;
+        if (_sessionEvalCount >= _unevaluatedPosts.length) _sessionEvalCount = 0;
+      });
+      _resetTimer();
     }
   }
 
@@ -250,16 +235,16 @@ class _EvalScreenState extends State<EvalScreen> {
 
   // ── プログレスバー ────────────────────────────────────────────
   Widget _buildProgressBar() {
-    final int total = _unevaluatedPosts.length + _sessionEvalCount;
+    final int total = _unevaluatedPosts.length; // DB件数固定（無限ループ中はlengthが変わらない）
     final double pct =
-        total > 0 ? (_sessionEvalCount / total).clamp(0.0, 1.0) : 0.0;
+        total > 0 ? ((_sessionEvalCount + 1) / total).clamp(0.0, 1.0) : 0.0;
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('$_sessionEvalCount ',
+            Text('${_sessionEvalCount + 1} ',
                 style: AppTheme.getNotoSansJP(
                     color: Colors.white,
                     fontSize: 12,
