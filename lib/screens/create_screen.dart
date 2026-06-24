@@ -1,6 +1,8 @@
 // lib/screens/create_screen.dart
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../services/supabase_service.dart';
 
@@ -42,6 +44,11 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   ];
   String? _selectedPresetUrl;
+  bool _isUploadingPhoto = false;
+  // ローカル選択した画像（バイト列）。アップロードはAI生成時に行う
+  Uint8List? _pickedImageBytes;
+  String _pickedImageMime = 'image/jpeg';
+  String? _uploadedBeforeUrl; // AI生成後に確定するbefore URL
 
   // Tags list
   final List<String> _fallbackTags = ['緑化', 'ベンチ', '歩道拡幅', '日陰', '自転車レーン', 'バリアフリー'];
@@ -114,7 +121,8 @@ class _CreateScreenState extends State<CreateScreen> {
   static const String _fixedLocation = '皇居';
 
   Future<void> _triggerAIGeneration() async {
-    if (_selectedPresetUrl == null) {
+    // ローカル選択画像もプリセットURLもない場合はエラー
+    if (_pickedImageBytes == null && _selectedPresetUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('BEFORE画像（元の風景）を選択してください')),
       );
@@ -158,11 +166,22 @@ class _CreateScreenState extends State<CreateScreen> {
           '${tagListString.isNotEmpty ? 'タグ: $tagListString。' : ''}'
           '${userPrompt.isNotEmpty ? '要望: $userPrompt' : ''}';
 
-      // 1. Insert job to ai_generation_jobs
+      // 1. ローカル画像があればここでアップロード
+      String inputImageUrl = _selectedPresetUrl ?? '';
+      if (_pickedImageBytes != null) {
+        inputImageUrl = await SupabaseService.uploadBeforeImage(
+          userId: uid,
+          bytes: _pickedImageBytes!,
+          mimeType: _pickedImageMime,
+        );
+        _uploadedBeforeUrl = inputImageUrl;
+      }
+
+      // 2. Insert job to ai_generation_jobs
       final job = await SupabaseService.insertAIGenerationJob(
         userId: uid,
         projectId: _selectedProjectId,
-        inputImageUrl: _selectedPresetUrl!,
+        inputImageUrl: inputImageUrl,
         selectedTagIds: selectedTagIds,
         prompt: prompt,
       );
@@ -262,7 +281,7 @@ class _CreateScreenState extends State<CreateScreen> {
         {
           'post_id': post['id'],
           'media_type': 'before',
-          'url': _selectedPresetUrl,
+          'url': _uploadedBeforeUrl ?? _selectedPresetUrl,
         },
         {
           'post_id': post['id'],
@@ -348,6 +367,27 @@ class _CreateScreenState extends State<CreateScreen> {
     setState(() => _selectedPresetUrl = _presets[nextIndex]['url']);
   }
 
+  // Section 1: ローカルで画像を選ぶだけ。アップロードはAI生成時に行う
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1536,
+      maxHeight: 1536,
+      imageQuality: 90,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final mime = picked.mimeType ?? 'image/jpeg';
+    setState(() {
+      _pickedImageBytes = bytes;
+      _pickedImageMime = mime;
+      _selectedPresetUrl = null; // ローカル表示に切り替え
+      _uploadedBeforeUrl = null;
+    });
+  }
+
   int get _currentStep {
     if (_generatedImageUrl != null && !_isGenerating) return 4;
     if (_isGenerating) return 3;
@@ -395,19 +435,15 @@ class _CreateScreenState extends State<CreateScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                  color: Colors.white, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text('$num',
-                  style: TextStyle(
-                      color: AppTheme.teal,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800)),
+            CustomPaint(
+              painter: _CircleNumberPainter(
+                number: '$num',
+                circleColor: Colors.white,
+                textColor: AppTheme.teal,
+              ),
+              size: const Size(18, 18),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 9),
             Text(label,
                 style: AppTheme.getNotoSansJP(
                     fontSize: 13,
@@ -419,20 +455,15 @@ class _CreateScreenState extends State<CreateScreen> {
     }
     return Row(
       children: [
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            color: isDone ? AppTheme.teal.withOpacity(0.12) : Colors.transparent,
-            border: Border.all(color: AppTheme.sub.withOpacity(0.3)),
-            shape: BoxShape.circle,
+        CustomPaint(
+          painter: _CircleNumberPainter(
+            number: '$num',
+            circleColor: isDone ? AppTheme.teal.withOpacity(0.12) : Colors.transparent,
+            textColor: isDone ? AppTheme.teal : AppTheme.sub.withOpacity(0.55),
+            hasBorder: true,
+            borderColor: AppTheme.sub.withOpacity(0.3),
           ),
-          alignment: Alignment.center,
-          child: Text('$num',
-              style: TextStyle(
-                  color: isDone ? AppTheme.teal : AppTheme.sub.withOpacity(0.55),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700)),
+          size: const Size(18, 18),
         ),
         const SizedBox(width: 5),
         Text(label,
@@ -564,9 +595,11 @@ class _CreateScreenState extends State<CreateScreen> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: _selectedPresetUrl != null
-                                ? AppTheme.buildImage(_selectedPresetUrl!)
-                                : Container(color: AppTheme.border),
+                            child: _pickedImageBytes != null
+                                ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
+                                : _selectedPresetUrl != null
+                                    ? AppTheme.buildImage(_selectedPresetUrl!)
+                                    : Container(color: AppTheme.border),
                           ),
                           Positioned.fill(
                             child: DecoratedBox(
@@ -582,33 +615,22 @@ class _CreateScreenState extends State<CreateScreen> {
                               ),
                             ),
                           ),
-                          // カメラボタン（左下）
-                          Positioned(
-                            bottom: 14,
-                            left: 14,
-                            child: GestureDetector(
-                              onTap: _cyclePreset,
+                          // アップロード中オーバーレイ
+                          if (_isUploadingPhoto)
+                            Positioned.fill(
                               child: Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF07121A).withOpacity(0.72),
-                                  border: Border.all(
-                                      color: Colors.white.withOpacity(0.5),
-                                      width: 1.5),
-                                ),
-                                child: const Icon(Icons.photo_camera_outlined,
-                                    color: Colors.white, size: 20),
+                                color: Colors.black.withOpacity(0.45),
+                                alignment: Alignment.center,
+                                child: const CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5),
                               ),
                             ),
-                          ),
-                          // 写真を選ぶボタン（右下）
+                          // 写真をアップロードボタン（右下）
                           Positioned(
                             bottom: 14,
                             right: 14,
                             child: GestureDetector(
-                              onTap: _cyclePreset,
+                              onTap: _isUploadingPhoto ? null : _pickAndUploadImage,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 13, vertical: 7),
@@ -622,11 +644,18 @@ class _CreateScreenState extends State<CreateScreen> {
                                         offset: const Offset(0, 2)),
                                   ],
                                 ),
-                                child: Text('写真を選ぶ',
-                                    style: AppTheme.getNotoSansJP(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.text)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.upload_rounded, size: 14, color: AppTheme.text),
+                                    const SizedBox(width: 5),
+                                    Text('写真をアップロード',
+                                        style: AppTheme.getNotoSansJP(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.text)),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -1036,4 +1065,61 @@ class _CreateScreenState extends State<CreateScreen> {
       ),
     );
   }
+}
+
+class _CircleNumberPainter extends CustomPainter {
+  final String number;
+  final Color circleColor;
+  final Color textColor;
+  final bool hasBorder;
+  final Color? borderColor;
+
+  const _CircleNumberPainter({
+    required this.number,
+    required this.circleColor,
+    required this.textColor,
+    this.hasBorder = false,
+    this.borderColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    final circlePaint = Paint()..color = circleColor;
+    canvas.drawCircle(center, radius, circlePaint);
+
+    if (hasBorder && borderColor != null) {
+      final borderPaint = Paint()
+        ..color = borderColor!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawCircle(center, radius - 0.5, borderPaint);
+    }
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: number,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          height: 1.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(
+      canvas,
+      Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleNumberPainter old) =>
+      old.number != number ||
+      old.circleColor != circleColor ||
+      old.textColor != textColor;
 }
