@@ -308,6 +308,23 @@ class _CreateScreenState extends State<CreateScreen> {
 
       if (!mounted) return;
 
+      // 投稿完了後、すべての状態を初期化
+      setState(() {
+        _pickedImageBytes = null;
+        _pickedImageMime = 'image/jpeg';
+        _uploadedBeforeUrl = null;
+        _selectedPresetUrl = _presets[0]['url'];
+        _selectedTags.clear();
+        _generatedImageUrl = null;
+        _isGenerating = false;
+        _stepLabel = '';
+        _selectedProjectId = null;
+        _titleController.clear();
+        _bodyController.clear();
+        _addressController.clear();
+        _promptController.clear();
+      });
+
       if (widget.onBack != null) {
         widget.onBack!();
       } else {
