@@ -585,7 +585,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // 3〜9. 長時間処理はバックグラウンドで実行し、接続を即座に解放する
-  EdgeRuntime.waitUntil(runJob({
+  const bgPromise = runJob({
     jobId,
     userId: authData.user.id,
     job,
@@ -595,7 +595,16 @@ Deno.serve(async (req: Request) => {
     imageModel,
     promptModel,
     requestStartMs,
-  }));
+  });
+  // EdgeRuntime.waitUntil が利用可能な場合はそれを使う（Supabase Edge Runtime 推奨）
+  // 利用できない場合はPromiseをそのまま起動（フォールバック）
+  // deno-lint-ignore no-explicit-any
+  if (typeof (globalThis as any).EdgeRuntime !== 'undefined') {
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime.waitUntil(bgPromise);
+  } else {
+    bgPromise.catch((e) => console.error('runJob unhandled error:', e));
+  }
 
   return jsonResponse({ ok: true, job_id: jobId, status: "accepted" }, 200);
 });
