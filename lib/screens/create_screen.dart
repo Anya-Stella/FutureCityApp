@@ -68,6 +68,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   // Job Flow
   bool _isGenerating = false;
+  bool _generationFailed = false;
   String? _generatedImageUrl;
   String _stepLabel = '';
 
@@ -197,7 +198,7 @@ class _CreateScreenState extends State<CreateScreen> {
       Timer.periodic(const Duration(seconds: 2), (timer) async {
         checkCount++;
 
-        if (checkCount > 40) { // Timeout safety fallback for image generation (about 80s)
+        if (checkCount > 75) { // Timeout safety fallback for image generation (about 150s)
           timer.cancel();
           _finishJobWithFallback();
           return;
@@ -239,11 +240,10 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   void _finishJobWithFallback() {
-    // Generate a fallback futuristic mock visual depending on the selected tags
-    final keywords = _selectedTags.isNotEmpty ? _selectedTags.join(',') : 'city,architecture';
     setState(() {
       _isGenerating = false;
-      _generatedImageUrl = 'https://loremflickr.com/600/600/futuristic,$keywords';
+      _generationFailed = true;
+      _generatedImageUrl = null;
     });
   }
 
@@ -316,6 +316,7 @@ class _CreateScreenState extends State<CreateScreen> {
         _selectedPresetUrl = _presets[0]['url'];
         _selectedTags.clear();
         _generatedImageUrl = null;
+        _generationFailed = false;
         _isGenerating = false;
         _stepLabel = '';
         _selectedProjectId = null;
@@ -777,10 +778,11 @@ class _CreateScreenState extends State<CreateScreen> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: _generatedImageUrl != null
-                                ? AppTheme.buildImage(_generatedImageUrl!)
-                                : Image.asset('assets/generate-placeholder.png',
-                                    fit: BoxFit.cover),
+                            child: _generationFailed
+                                ? Image.asset('assets/generation-failed.png', fit: BoxFit.cover)
+                                : _generatedImageUrl != null
+                                    ? AppTheme.buildImage(_generatedImageUrl!)
+                                    : Image.asset('assets/generate-placeholder.png', fit: BoxFit.cover),
                           ),
                           // 生成中スピナー
                           if (_isGenerating)
@@ -834,7 +836,7 @@ class _CreateScreenState extends State<CreateScreen> {
                     ),
 
                     // 生成ボタン（画像の下）
-                    if (_generatedImageUrl == null && !_isGenerating) ...[
+                    if (_generatedImageUrl == null && !_isGenerating && !_generationFailed) ...[
                       const SizedBox(height: 12),
                       GestureDetector(
                         onTap: _triggerAIGeneration,
@@ -938,6 +940,24 @@ class _CreateScreenState extends State<CreateScreen> {
                               ],
                             ),
                           ),
+                        ),
+                      ),
+                    ],
+
+                    // 失敗時：もう一度生成するボタンのみ表示
+                    if (_generationFailed) ...[
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _generationFailed = false);
+                          _triggerAIGeneration();
+                        },
+                        child: Center(
+                          child: Text('もう一度生成する',
+                              style: AppTheme.getNotoSansJP(
+                                  color: AppTheme.teal,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
                         ),
                       ),
                     ],
