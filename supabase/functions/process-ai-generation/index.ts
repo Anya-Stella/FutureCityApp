@@ -23,6 +23,9 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Supabase Edge Runtime global (keeps function alive after response is sent)
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -596,15 +599,7 @@ Deno.serve(async (req: Request) => {
     promptModel,
     requestStartMs,
   });
-  // EdgeRuntime.waitUntil が利用可能な場合はそれを使う（Supabase Edge Runtime 推奨）
-  // 利用できない場合はPromiseをそのまま起動（フォールバック）
-  // deno-lint-ignore no-explicit-any
-  if (typeof (globalThis as any).EdgeRuntime !== 'undefined') {
-    // deno-lint-ignore no-explicit-any
-    (globalThis as any).EdgeRuntime.waitUntil(bgPromise);
-  } else {
-    bgPromise.catch((e) => console.error('runJob unhandled error:', e));
-  }
+  EdgeRuntime.waitUntil(bgPromise);
 
   return jsonResponse({ ok: true, job_id: jobId, status: "accepted" }, 200);
 });
